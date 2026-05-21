@@ -35,8 +35,23 @@ export default function RequestFuelModal({ isOpen, onClose, onSuccess }) {
       if (user?.role !== 'USER') {
         setIssuedTo(vehicle.driverName || '');
       }
-      setLastKmReading(vehicle.lastKmReading.toString());
       setMileage(vehicle.mileage.toString());
+
+      // Fetch lastKmReading from the Last Entry in the History tab of ActualFilling by matching the vehicle no
+      const allRequests = fuelService.getFuelRequests();
+      const vehicleHistory = allRequests.filter(
+        r => r.vehicleNo.toUpperCase() === selectedNo.toUpperCase() && r.status === 'completed'
+      );
+
+      if (vehicleHistory.length > 0) {
+        // Sort history by createdAt/fillingDate descending to get the last entry
+        vehicleHistory.sort((a, b) => new Date(b.createdAt || b.fillingDate) - new Date(a.createdAt || a.fillingDate));
+        const lastEntry = vehicleHistory[0];
+        setLastKmReading(lastEntry.currentKmReading.toString());
+      } else {
+        // Fallback to vehicle master lastKmReading
+        setLastKmReading(vehicle.lastKmReading.toString());
+      }
     } else {
       if (user?.role !== 'USER') {
         setIssuedTo('');
@@ -64,21 +79,25 @@ export default function RequestFuelModal({ isOpen, onClose, onSuccess }) {
       const tempRequestNo = generateRequestNo(requests);
       const tempSlipNo = location === 'A' ? generateSlipNo(requests) : null;
 
-      // Construct temporary slip structure to generate image
-      const slipDataForImage = {
-        requestNo: tempRequestNo,
-        slipNo: tempSlipNo,
-        vehicleNo: vehicleNo.toUpperCase(),
-        issuedTo: issuedTo.trim(),
-        location,
-        customLocation: customLocation.trim(),
-        lastKmReading: parseFloat(lastKmReading),
-        mileage: parseFloat(mileage),
-        requestDate: new Date().toISOString().split('T')[0]
-      };
+      let slipImageBase64 = '';
 
-      // Trigger automatic canvas slip download and get data url
-      const slipImageBase64 = await downloadFuelSlip(slipDataForImage);
+      if (location !== 'Others') {
+        // Construct temporary slip structure to generate image
+        const slipDataForImage = {
+          requestNo: tempRequestNo,
+          slipNo: tempSlipNo,
+          vehicleNo: vehicleNo.toUpperCase(),
+          issuedTo: issuedTo.trim(),
+          location,
+          customLocation: customLocation.trim(),
+          lastKmReading: parseFloat(lastKmReading),
+          mileage: parseFloat(mileage),
+          requestDate: new Date().toISOString().split('T')[0]
+        };
+
+        // Trigger automatic canvas slip download and get data url
+        slipImageBase64 = await downloadFuelSlip(slipDataForImage);
+      }
 
       // Save to localStorage
       const newRequest = fuelService.createFuelRequest({
@@ -91,17 +110,23 @@ export default function RequestFuelModal({ isOpen, onClose, onSuccess }) {
       });
 
       // Update the request record in localStorage with the slip image
-      const currentRequests = fuelService.getFuelRequests();
-      const updatedRequests = currentRequests.map(r => {
-        if (r.id === newRequest.id) {
-          return { ...r, slipImage: slipImageBase64 };
-        }
-        return r;
-      });
-      fuelService.saveFuelRequests(updatedRequests);
+      if (slipImageBase64) {
+        const currentRequests = fuelService.getFuelRequests();
+        const updatedRequests = currentRequests.map(r => {
+          if (r.id === newRequest.id) {
+            return { ...r, slipImage: slipImageBase64 };
+          }
+          return r;
+        });
+        fuelService.saveFuelRequests(updatedRequests);
+      }
 
       const notifyNo = tempSlipNo || tempRequestNo;
-      toast.success(`Fuel request ${notifyNo} submitted & slip downloaded!`);
+      if (location === 'Others') {
+        toast.success(`Fuel request ${notifyNo} submitted successfully!`);
+      } else {
+        toast.success(`Fuel request ${notifyNo} submitted & slip downloaded!`);
+      }
       
       // Reset state
       setVehicleNo('');
@@ -141,7 +166,7 @@ export default function RequestFuelModal({ isOpen, onClose, onSuccess }) {
             <option value="">Select a Vehicle</option>
             {vehicles.map(v => (
               <option key={v.id} value={v.vehicleNo}>
-                {v.vehicleNo} {v.driverName ? `(${v.driverName})` : ''}
+                {v.vehicleNo}
               </option>
             ))}
           </select>

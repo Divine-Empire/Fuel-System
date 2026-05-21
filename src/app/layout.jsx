@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
-import { LayoutGrid, FileText, User as UserIcon } from 'lucide-react';
+import { LayoutGrid, User as UserIcon } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -49,16 +49,6 @@ export default function Layout() {
             >
               <LayoutGrid size={20} />
               <span className="text-[10px] tracking-tight">Dashboard</span>
-            </NavLink>
-            <NavLink
-              to="/request-filling"
-              className={({ isActive }) => `
-                flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all duration-150
-                ${isActive ? 'text-indigo-600 font-bold scale-105' : 'text-slate-400 hover:text-slate-600 font-medium'}
-              `}
-            >
-              <FileText size={20} />
-              <span className="text-[10px] tracking-tight">Request Filling</span>
             </NavLink>
             <NavLink
               to="/profile"

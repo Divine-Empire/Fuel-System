@@ -22,8 +22,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     switch (location.pathname) {
       case '/dashboard':
         return 'Dashboard';
-      case '/request-filling':
-        return 'Request Filling';
       case '/actual-filling':
         return 'Actual Filling';
       case '/payment':
@@ -46,7 +44,6 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const adminMenuItems = [
     { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/request-filling', icon: FileText,     label: 'Request Filling' },
     { path: '/actual-filling',  icon: Fuel,         label: 'Actual Filling' },
     { path: '/payment',         icon: Wallet,       label: 'Payments' },
     { path: '/master',          icon: Car,          label: 'Vehicle Master' },
@@ -55,7 +52,6 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const employeeMenuItems = [
     { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/request-filling', icon: FileText,     label: 'Request Filling' },
     { path: '/profile',         icon: UserIcon,     label: 'Profile' },
   ];
 
@@ -78,8 +74,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-2">
             <img src={divineLogo} alt="Divine Empire Logo" className="w-8 h-8 object-contain" />
             <div className="flex flex-col">
-              <span className="text-sm font-extrabold text-slate-900 leading-tight">Divine Empire</span>
-              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">{getStageName()}</span>
+              <span className="text-lg font-extrabold text-slate-900 leading-tight">Fuel System</span>
             </div>
           </div>
           <button onClick={onClose} className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors">

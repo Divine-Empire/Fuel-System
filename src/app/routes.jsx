@@ -4,7 +4,6 @@ import Layout from './layout';
 import Login from '../pages/auth/Login';
 import Settings from '../pages/Settings';
 import Dashboard from '../pages/dashboard/Dashboard';
-import RequestFilling from '../pages/request-filling/RequestFilling';
 import ActualFilling from '../pages/actual-filling/ActualFilling';
 import Payment from '../pages/payment/payment';
 import Master from '../pages/vehicle-master/master';
@@ -28,7 +27,6 @@ export default function AppRoutes() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
-        <Route path="request-filling" element={<RequestFilling />} />
         <Route path="profile" element={<Profile />} />
         
         {/* Protected Admin Routes */}

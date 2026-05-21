@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Play, Eye, Download, Image as ImageIcon, Search, Calendar } from 'lucide-react';
+import { Play, Eye, Download, Image as ImageIcon, Search, Calendar, Plus } from 'lucide-react';
 import TableWrapper from '../../components/TableWrapper';
 import ModalWrapper from '../../components/ModalWrapper';
 import ProcessFuelModal from '../../components/modals/ProcessFuelModal';
 import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
+import RequestFuelModal from '../../components/modals/RequestFuelModal';
 import { fuelService } from '../../services/fuel.service';
 import { downloadFuelSlip } from '../../utils/generateFuelSlip';
 import formatCurrency from '../../utils/formatCurrency';
@@ -19,6 +20,7 @@ export default function ActualFilling() {
   // Modal actions
   const [selectedProcessRequest, setSelectedProcessRequest] = useState(null);
   const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   
   // Image preview state
   const [previewImage, setPreviewImage] = useState(null);
@@ -116,16 +118,26 @@ export default function ActualFilling() {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-80">
-          <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            placeholder={activeTab === 'pending' ? "Search pending (req, slip, vehicle)..." : "Search history (bill, vehicle, slip, req)..."}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className={inputCls}
-          />
+        {/* Search and Action Button */}
+        <div className="flex w-full md:w-auto items-center gap-3">
+          <div className="relative flex-1 md:w-80">
+            <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder={activeTab === 'pending' ? "Search pending (req, slip, vehicle)..." : "Search history (bill, vehicle, slip, req)..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <button
+            onClick={() => setIsRequestModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap"
+            id="request-fuel-btn"
+          >
+            <Plus size={15} />
+            New Request
+          </button>
         </div>
       </div>
 
@@ -271,6 +283,15 @@ export default function ActualFilling() {
           </button>
         </div>
       </ModalWrapper>
+
+      {/* Request Fuel Modal */}
+      {isRequestModalOpen && (
+        <RequestFuelModal
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          onSuccess={loadRequests}
+        />
+      )}
     </div>
   );
 }

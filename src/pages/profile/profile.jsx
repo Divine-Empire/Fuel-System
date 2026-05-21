@@ -89,10 +89,10 @@ export default function Profile() {
 
   return (
     <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pt-2">
-      <div className="max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
+      <div className="max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 flex-shrink-0">
         
         {/* Left Side: Avatar Upload */}
-        <div className="p-8 flex flex-col items-center justify-center space-y-4 md:w-1/3 bg-slate-50/50">
+        <div className="p-6 md:p-8 flex flex-col items-center justify-center space-y-4 md:w-1/3 bg-slate-50/50">
           <div className="relative group">
             <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-indigo-100 shadow-md bg-white flex items-center justify-center">
               {profilePic ? (
@@ -127,7 +127,7 @@ export default function Profile() {
         </div>
 
         {/* Right Side: Form fields */}
-        <form onSubmit={handleSave} className="p-8 space-y-4 flex-1">
+        <form onSubmit={handleSave} className="p-6 md:p-8 space-y-4 flex-1">
           <div>
             <label className={labelCls}>Full Name</label>
             <div className="relative">

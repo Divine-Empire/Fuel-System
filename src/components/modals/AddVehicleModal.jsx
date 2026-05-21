@@ -13,7 +13,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
   const [documents, setDocuments] = useState([]);
 
   // Temp state for document attachment in progress
-  const [tempDocType, setTempDocType] = useState('RC');
+  const [tempDocType, setTempDocType] = useState('');
   const [tempDocImage, setTempDocImage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,6 +32,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
   };
 
   const handleAddDocument = () => {
+    if (!tempDocType.trim()) {
+      return toast.error('Please enter a document name');
+    }
     if (!tempDocImage) {
       return toast.error('Please upload an image for the document');
     }
@@ -39,7 +42,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
     // Add to list
     const newDoc = {
       id: `doc_${Date.now()}`,
-      docType: tempDocType,
+      docType: tempDocType.trim(),
       docImage: tempDocImage
     };
     
@@ -47,7 +50,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
     
     // Reset temp inputs
     setTempDocImage('');
-    setTempDocType('RC');
+    setTempDocType('');
     toast.success('Document added to vehicle!');
   };
 
@@ -64,12 +67,12 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
       return toast.error('Please enter a valid Last KM Reading');
     }
 
-    // If there is an un-added document in the upload slots, let's warn the admin or auto-add it if they want
+    // If there is an un-added document in the upload slots, let's auto-add it if it has a name
     let finalDocs = [...documents];
-    if (tempDocImage) {
+    if (tempDocImage && tempDocType.trim()) {
       finalDocs.push({
         id: `doc_${Date.now()}`,
-        docType: tempDocType,
+        docType: tempDocType.trim(),
         docImage: tempDocImage
       });
     }
@@ -95,7 +98,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
       setDriverName('');
       setDocuments([]);
       setTempDocImage('');
-      setTempDocType('RC');
+      setTempDocType('');
 
       onSuccess();
       onClose();
@@ -193,19 +196,15 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
             <div className="grid grid-cols-2 gap-3 items-end">
               <div>
-                <label className={labelCls}>Document Type</label>
-                <select
+                <label className={labelCls}>Document Name</label>
+                <input
+                  type="text"
                   value={tempDocType}
                   onChange={(e) => setTempDocType(e.target.value)}
-                  className={selectCls}
+                  placeholder="e.g. RC, Insurance, etc."
+                  className={inputCls}
                   disabled={submitting}
-                >
-                  <option value="RC">Registration Certificate (RC)</option>
-                  <option value="Insurance">Insurance Policy</option>
-                  <option value="Pollution Certificate (PUC)">Pollution Certificate (PUC)</option>
-                  <option value="Permit">Vehicle Permit</option>
-                  <option value="Others">Others</option>
-                </select>
+                />
               </div>
 
               <div className="flex gap-2">

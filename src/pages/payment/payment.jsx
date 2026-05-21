@@ -14,6 +14,12 @@ export default function Payment() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Filter states
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
+
   // Image preview state
   const [previewImage, setPreviewImage] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('');
@@ -35,7 +41,12 @@ export default function Payment() {
     loadRequests();
   }, []);
 
-  // Filter requests based on tab and search query
+  // Derive dropdown lists from completed requests
+  const completedRequests = requests.filter(req => req.status === 'completed');
+  const uniqueVehicles = Array.from(new Set(completedRequests.map(r => r.vehicleNo).filter(Boolean))).sort();
+  const uniqueDrivers = Array.from(new Set(completedRequests.map(r => r.issuedTo).filter(Boolean))).sort();
+
+  // Filter requests based on tab, search query, date range, driver, and vehicle
   const displayedRequests = requests.filter((req) => {
     // Only completed fuel fillings can go to payment
     if (req.status !== 'completed') return false;
@@ -44,6 +55,31 @@ export default function Payment() {
     const isPaid = req.paymentStatus === 'paid';
     const tabMatch = activeTab === 'pending' ? !isPaid : isPaid;
     if (!tabMatch) return false;
+
+    // Date range filter
+    if (req.requestDate) {
+      const reqDate = new Date(req.requestDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        if (reqDate < start) return false;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (reqDate > end) return false;
+      }
+    } else if (startDate || endDate) {
+      return false;
+    }
+
+    // Driver filter
+    if (selectedDriver && req.issuedTo !== selectedDriver) {
+      return false;
+    }
+
+    // Vehicle filter
+    if (selectedVehicle && req.vehicleNo !== selectedVehicle) {
+      return false;
+    }
 
     // Search query match
     if (searchQuery.trim()) {
@@ -142,6 +178,10 @@ export default function Payment() {
               setActiveTab('pending');
               setSelectedIds([]);
               setSearchQuery('');
+              setStartDate('');
+              setEndDate('');
+              setSelectedDriver('');
+              setSelectedVehicle('');
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'pending'
@@ -156,6 +196,10 @@ export default function Payment() {
               setActiveTab('history');
               setSelectedIds([]);
               setSearchQuery('');
+              setStartDate('');
+              setEndDate('');
+              setSelectedDriver('');
+              setSelectedVehicle('');
             }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'history'
@@ -167,20 +211,69 @@ export default function Payment() {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-80">
-          <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            placeholder={
-              activeTab === 'pending'
-                ? "Search pending (req, vehicle, bill)..."
-                : "Search paid history (req, vehicle, bill)..."
-            }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className={inputCls}
-          />
+        {/* Filters and Search Container */}
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Start Date */}
+          <div className="relative">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              title="Start Date"
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="relative">
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              title="End Date"
+            />
+          </div>
+
+          {/* Vehicle Dropdown */}
+          <select
+            value={selectedVehicle}
+            onChange={(e) => setSelectedVehicle(e.target.value)}
+            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+          >
+            <option value="">All Vehicles</option>
+            {uniqueVehicles.map((v) => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+
+          {/* Driver Dropdown */}
+          <select
+            value={selectedDriver}
+            onChange={(e) => setSelectedDriver(e.target.value)}
+            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+          >
+            <option value="">All Drivers</option>
+            {uniqueDrivers.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          {/* Search */}
+          <div className="relative w-full md:w-64">
+            <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder={
+                activeTab === 'pending'
+                  ? "Search pending (req, vehicle, bill)..."
+                  : "Search paid history (req, vehicle, bill)..."
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={inputCls}
+            />
+          </div>
         </div>
       </div>
 

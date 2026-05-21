@@ -11,12 +11,14 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  Download
+  Download,
+  Plus
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import TableWrapper from '../../components/TableWrapper';
 import StatusTag from '../../components/StatusTag';
 import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
+import RequestFuelModal from '../../components/modals/RequestFuelModal';
 import { dashboardService } from '../../services/dashboard.service';
 import { vehicleService } from '../../services/vehicle.service';
 import formatCurrency from '../../utils/formatCurrency';
@@ -36,6 +38,7 @@ export default function Dashboard() {
   const [masterVehicles, setMasterVehicles] = useState([]);
   const [expandedVehicles, setExpandedVehicles] = useState({});
   const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   const fetchDashboardData = () => {
     setLoading(true);
@@ -599,8 +602,16 @@ export default function Dashboard() {
       ) : (
         /* Standard User View: Shows simple My Requests Table */
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[350px]">
-          <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+          <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 font-sans">My Request History</h3>
+            <button
+              onClick={() => setIsRequestModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap"
+              id="request-fuel-btn"
+            >
+              <Plus size={15} />
+              New Request
+            </button>
           </div>
           <div className="flex-1 overflow-x-auto min-h-0">
             <TableWrapper
@@ -637,6 +648,14 @@ export default function Dashboard() {
           isOpen={!!selectedSlipRequest}
           onClose={() => setSelectedSlipRequest(null)}
           request={selectedSlipRequest}
+        />
+      )}
+
+      {isRequestModalOpen && (
+        <RequestFuelModal
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          onSuccess={fetchDashboardData}
         />
       )}
     </div>
