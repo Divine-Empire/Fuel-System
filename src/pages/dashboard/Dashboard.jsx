@@ -1,53 +1,220 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   IndianRupee,
-  Users,
   FileText,
-  AlertCircle,
   CheckCircle2,
-  TrendingUp,
   Calendar,
   RefreshCw,
-  PhoneCall
+  Car,
+  Fuel,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Download
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import TableWrapper from '../../components/TableWrapper';
 import StatusTag from '../../components/StatusTag';
+import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
 import { dashboardService } from '../../services/dashboard.service';
+import { vehicleService } from '../../services/vehicle.service';
 import formatCurrency from '../../utils/formatCurrency';
 import formatDate from '../../utils/formatDate';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  PieChart, Pie, Cell
-} from 'recharts';
-
-const COLORS = {
-  Received: '#10b981',
-  Partial: '#f59e0b',
-  Pending: '#f43f5e'
-};
+import { useAuthStore } from '../../store/authStore';
 
 export default function Dashboard() {
+  const { user } = useAuthStore();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState('');
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [masterVehicles, setMasterVehicles] = useState([]);
+  const [expandedVehicles, setExpandedVehicles] = useState({});
+  const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
 
   const fetchDashboardData = () => {
     setLoading(true);
     const filter = startDate && endDate ? { start: startDate, end: endDate } : null;
-    const res = dashboardService.getDashboardData(filter);
+    const res = dashboardService.getDashboardData(filter, user);
     setData(res);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchDashboardData();
+    const list = vehicleService.getVehicles();
+    setMasterVehicles(list);
   }, [startDate, endDate]);
 
   const handleReset = () => {
     setStartDate('');
     setEndDate('');
+    setSelectedLocation('');
+    setSelectedVehicle('');
+    setSelectedDriver('');
+  };
+
+  const toggleVehicle = (vehicleNo) => {
+    setExpandedVehicles((prev) => ({
+      ...prev,
+      [vehicleNo]: !prev[vehicleNo],
+    }));
+  };
+
+  const { metrics, requests = [], filterOptions = {} } = data || {};
+
+  // Check if any admin filter is active
+  const isFilterActive = useMemo(() => {
+    return !!(selectedLocation || selectedVehicle || selectedDriver);
+  }, [selectedLocation, selectedVehicle, selectedDriver]);
+
+  // Grouped vehicle table data calculations (completed fillings only)
+  const groupedData = useMemo(() => {
+    if (user?.role !== 'ADMIN') return [];
+
+    const groups = {};
+
+    requests.forEach((req) => {
+      const vNo = req.vehicleNo;
+      if (!vNo) return;
+
+      if (!groups[vNo]) {
+        groups[vNo] = {
+          vehicleNo: vNo,
+          expectedAvg: 0,
+          totalDistance: 0,
+          totalQty: 0,
+          totalExpense: 0,
+          fillingsCount: 0,
+          records: [],
+        };
+      }
+
+      groups[vNo].records.push(req);
+
+      if (recIsCompleted(req)) {
+        groups[vNo].fillingsCount += 1;
+        groups[vNo].totalQty += req.qty || 0;
+        groups[vNo].totalExpense += req.totalAmount || 0;
+
+        const currentKm = parseFloat(req.currentKmReading);
+        const lastKm = parseFloat(req.lastKmReading);
+        if (!isNaN(currentKm) && !isNaN(lastKm) && currentKm > lastKm) {
+          groups[vNo].totalDistance += (currentKm - lastKm);
+        }
+      }
+
+      if (req.mileage && !groups[vNo].expectedAvg) {
+        groups[vNo].expectedAvg = parseFloat(req.mileage);
+      }
+    });
+
+    return Object.values(groups).map((g) => {
+      if (g.expectedAvg === 0) {
+        const masterVehicle = masterVehicles.find(
+          (v) => v.vehicleNo.toLowerCase() === g.vehicleNo.toLowerCase()
+        );
+        if (masterVehicle && masterVehicle.mileage) {
+          g.expectedAvg = parseFloat(masterVehicle.mileage);
+        }
+      }
+
+      const actualAvg = g.totalQty > 0 ? g.totalDistance / g.totalQty : 0;
+      const mileageDiff = g.expectedAvg - actualAvg;
+
+      return {
+        ...g,
+        actualAvg: parseFloat(actualAvg.toFixed(2)),
+        mileageDiff: parseFloat(mileageDiff.toFixed(2)),
+      };
+    });
+  }, [requests, user, masterVehicles]);
+
+  // Apply filters locally for detailed records list
+  const filteredRequests = useMemo(() => {
+    if (user?.role !== 'ADMIN') return [];
+
+    return requests.filter((req) => {
+      // Filter by Location
+      if (selectedLocation) {
+        const locStr = req.location === 'Others' ? (req.customLocation || 'Others') : `Location ${req.location}`;
+        if (locStr !== selectedLocation) return false;
+      }
+      // Filter by Vehicle
+      if (selectedVehicle && req.vehicleNo !== selectedVehicle) return false;
+      // Filter by Driver
+      if (selectedDriver && req.issuedTo !== selectedDriver) return false;
+
+      return true;
+    });
+  }, [requests, selectedLocation, selectedVehicle, selectedDriver, user]);
+
+  const activeMetrics = useMemo(() => {
+    const list = user?.role === 'ADMIN' ? filteredRequests : requests;
+
+    const totalRequests = list.length;
+    let pendingFilling = 0;
+    let completedFilling = 0;
+    let totalFuelExpense = 0;
+    let totalLitresFilled = 0;
+    const uniqueVehicles = new Set();
+
+    list.forEach((req) => {
+      if (req.vehicleNo) {
+        uniqueVehicles.add(req.vehicleNo);
+      }
+      if (req.status === 'pending') {
+        pendingFilling++;
+      } else if (req.status === 'completed') {
+        completedFilling++;
+        totalFuelExpense += req.totalAmount || 0;
+        totalLitresFilled += req.qty || 0;
+      }
+    });
+
+    return {
+      totalRequests,
+      pendingFilling,
+      completedFilling,
+      totalFuelExpense,
+      totalLitresFilled,
+      vehiclesCount: uniqueVehicles.size,
+    };
+  }, [requests, filteredRequests, user]);
+
+  function recIsCompleted(req) {
+    return req.status === 'completed';
+  }
+
+  // Calculate detailed record statistics for filtered log table
+  const getSingleRecordMetrics = (req) => {
+    const expected = parseFloat(req.mileage) || 0;
+    let actual = 0;
+    let diff = 0;
+    if (req.status === 'completed' && req.qty) {
+      const dist = (parseFloat(req.currentKmReading) || 0) - (parseFloat(req.lastKmReading) || 0);
+      if (dist > 0) {
+        actual = dist / req.qty;
+        diff = expected - actual;
+      }
+    }
+    return {
+      expected: expected ? `${expected.toFixed(1)} KM/L` : '—',
+      actual: actual ? `${actual.toFixed(2)} KM/L` : '—',
+      diff: actual ? `${diff.toFixed(2)} KM/L` : '—',
+    };
+  };
+
+  const getFuelType = (vehicleNo) => {
+    const matched = masterVehicles.find(
+      (v) => v.vehicleNo.toLowerCase() === vehicleNo.toLowerCase()
+    );
+    return matched?.fuelType || 'Diesel';
   };
 
   if (!data && loading) {
@@ -58,172 +225,420 @@ export default function Dashboard() {
     );
   }
 
-  const { metrics, revenueTrend, statusData, recentFollowUps, pendingPayments } = data || {};
-
   return (
-    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Dashboard Overview</h1>
-          <p className="text-sm text-slate-500 mt-1">Real-time collections and receivables analytics</p>
-        </div>
+    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pt-2">
 
-        {/* Date Filter */}
-        <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 p-2 rounded-xl shadow-sm">
-          <Calendar size={15} className="text-slate-400" />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="text-xs font-medium text-slate-700 bg-transparent border-0 focus:ring-0 p-1 cursor-pointer focus:outline-none"
-          />
-          <span className="text-xs text-slate-400">to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="text-xs font-medium text-slate-700 bg-transparent border-0 focus:ring-0 p-1 cursor-pointer focus:outline-none"
-          />
-          {(startDate || endDate) && (
-            <button
-              onClick={handleReset}
-              className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
-              title="Reset Filters"
-            >
-              <RefreshCw size={13} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <MetricCard title="Total Revenue" value={formatCurrency(metrics?.totalRevenue)} icon={TrendingUp} gradient="from-indigo-500 to-indigo-600" description="Gross invoiced amount" />
-        <MetricCard title="Received" value={formatCurrency(metrics?.receivedAmount)} icon={CheckCircle2} gradient="from-emerald-500 to-emerald-600" description={`${metrics?.totalRevenue ? Math.round((metrics.receivedAmount / metrics.totalRevenue) * 100) : 0}% collected`} />
-        <MetricCard title="Pending" value={formatCurrency(metrics?.pendingAmount)} icon={IndianRupee} gradient="from-amber-500 to-amber-600" description="Active balances" />
-        <MetricCard title="Overdue" value={formatCurrency(metrics?.overdueAmount)} icon={AlertCircle} gradient="from-rose-500 to-rose-600" description="Unpaid >10 days" />
-        <MetricCard title="Customers" value={metrics?.customersCount} icon={Users} gradient="from-sky-500 to-sky-600" description="Unique buyers" />
-        <MetricCard title="Invoices" value={metrics?.invoicesCount} icon={FileText} gradient="from-violet-500 to-violet-600" description="Total bills" />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Area Chart */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Revenue & Collection Trend</h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueTrend}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#cbd5e1" fontSize={10} tickLine={false} />
-                <YAxis stroke="#cbd5e1" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} />
-                <Tooltip
-                  labelFormatter={formatDate}
-                  formatter={(val) => [formatCurrency(val), '']}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Area type="monotone" dataKey="revenue" name="Total Invoiced" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
-                <Area type="monotone" dataKey="received" name="Collected" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceived)" />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* Filters Section (Admin Only) */}
+      {user?.role === 'ADMIN' && (
+        <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h3 className='text-sm font-bold text-slate-700'>Filter By</h3>
+            {(startDate || endDate || selectedLocation || selectedVehicle || selectedDriver) && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 font-bold transition-colors animate-pulse"
+              >
+                <RefreshCw size={12} />
+                Reset Filters
+              </button>
+            )}
           </div>
-        </div>
 
-        {/* Pie Chart */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Invoice Status Share</h3>
-          <div className="h-52 w-full relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={4} dataKey="value">
-                  {statusData?.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[entry.name] || '#94a3b8'} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(val) => [`${val} Invoices`, '']} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-xl font-black text-slate-800">{metrics?.invoicesCount}</span>
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Total Bills</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Start Date */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+
+            {/* End Date */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+
+            {/* Location Select */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Location</label>
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+              >
+                <option value="">All Locations</option>
+                {filterOptions?.locations?.map((loc) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Vehicle Select */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Vehicle</label>
+              <select
+                value={selectedVehicle}
+                onChange={(e) => setSelectedVehicle(e.target.value)}
+                className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+              >
+                <option value="">All Vehicles</option>
+                {filterOptions?.vehicles?.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Driver Select */}
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Driver</label>
+              <select
+                value={selectedDriver}
+                onChange={(e) => setSelectedDriver(e.target.value)}
+                className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+              >
+                <option value="">All Drivers</option>
+                {filterOptions?.drivers?.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-            {statusData?.map((entry) => (
-              <div key={entry.name} className="flex flex-col items-center">
-                <span className="text-sm font-bold text-slate-800">{entry.value}</span>
-                <span className="text-[10px] font-semibold flex items-center gap-1 mt-0.5 text-slate-400">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: COLORS[entry.name] }} />
-                  {entry.name}
-                </span>
-              </div>
-            ))}
+        </div>
+      )}
+
+      {/* Metrics Grid (All Users) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 font-sans">
+        <MetricCard
+          title="Total Requests"
+          value={activeMetrics?.totalRequests || 0}
+          icon={FileText}
+          gradient="from-indigo-500 to-indigo-600"
+          description="Gross slips generated"
+        />
+        <MetricCard
+          title="Pending Filling"
+          value={activeMetrics?.pendingFilling || 0}
+          icon={Clock}
+          gradient="from-amber-500 to-amber-600"
+          description="Awaiting diesel pump"
+        />
+        <MetricCard
+          title="Completed Filling"
+          value={activeMetrics?.completedFilling || 0}
+          icon={CheckCircle2}
+          gradient="from-emerald-500 to-emerald-600"
+          description="Processed slips history"
+        />
+        <MetricCard
+          title="Total Fuel Expense"
+          value={formatCurrency(activeMetrics?.totalFuelExpense || 0)}
+          icon={IndianRupee}
+          gradient="from-rose-500 to-rose-600"
+          description="Cost of finished fills"
+        />
+        <MetricCard
+          title="Total Litres Filled"
+          value={`${(activeMetrics?.totalLitresFilled || 0).toLocaleString()} L`}
+          icon={Fuel}
+          gradient="from-sky-500 to-sky-600"
+          description="Volume of fuel loaded"
+        />
+        <MetricCard
+          title="Vehicles Count"
+          value={activeMetrics?.vehiclesCount || 0}
+          icon={Car}
+          gradient="from-violet-500 to-violet-600"
+          description="Unique active vehicles"
+        />
+      </div>
+
+      {/* Main Table Content - Admin Collapsible Row / Filtered Logs View */}
+      {user?.role === 'ADMIN' ? (
+        !isFilterActive ? (
+          /* Unfiltered View: Accordion style grouped by Vehicle */
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+              <h3 className="text-sm font-bold text-slate-800 font-sans">Vehicle Grouped Summaries</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Click on any vehicle row to view individual record logs downwards</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs font-bold text-slate-400 uppercase bg-slate-50/70">
+                    <th className="px-5 py-3.5">Vehicle Number</th>
+                    <th className="px-5 py-3.5">Expected Avg.</th>
+                    <th className="px-5 py-3.5">Actual Avg.</th>
+                    <th className="px-5 py-3.5">No. of Fillings</th>
+                    <th className="px-5 py-3.5">Total Qty (L)</th>
+                    <th className="px-5 py-3.5">Total Expense</th>
+                    <th className="px-5 py-3.5">Mileage Diff</th>
+                    <th className="px-5 py-3.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {groupedData.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-400">
+                        No vehicle summaries log found.
+                      </td>
+                    </tr>
+                  ) : (
+                    groupedData.map((vehicle) => {
+                      const isExpanded = !!expandedVehicles[vehicle.vehicleNo];
+                      return (
+                        <React.Fragment key={vehicle.vehicleNo}>
+                          {/* Parent Group Row */}
+                          <tr
+                            onClick={() => toggleVehicle(vehicle.vehicleNo)}
+                            className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                          >
+                            <td className="px-5 py-4 text-sm font-extrabold text-indigo-600 font-mono tracking-wider">
+                              {vehicle.vehicleNo}
+                            </td>
+                            <td className="px-5 py-4 text-sm font-medium text-slate-500">
+                              {vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—'}
+                            </td>
+                            <td className="px-5 py-4 text-sm font-bold text-emerald-600">
+                              {vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—'}
+                            </td>
+                            <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                              {vehicle.fillingsCount}
+                            </td>
+                            <td className="px-5 py-4 text-sm text-slate-600">
+                              {vehicle.totalQty.toLocaleString()} L
+                            </td>
+                            <td className="px-5 py-4 text-sm font-semibold text-slate-800">
+                              {formatCurrency(vehicle.totalExpense)}
+                            </td>
+                            <td
+                              className={`px-5 py-4 text-sm font-bold ${
+                                vehicle.mileageDiff > 0
+                                  ? 'text-rose-500'
+                                  : vehicle.mileageDiff < 0
+                                  ? 'text-emerald-500'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {vehicle.mileageDiff !== 0
+                                ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff} KM/L`
+                                : '0.0 KM/L'}
+                            </td>
+                            <td className="px-5 py-4 text-slate-400">
+                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </td>
+                          </tr>
+
+                          {/* Nested Accordion Details */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/40">
+                              <td colSpan={8} className="p-0 border-t border-slate-100">
+                                <div className="px-6 py-4 bg-slate-50/50">
+                                  <div className="border border-slate-200 rounded-xl bg-white shadow-inner overflow-hidden">
+                                    <table className="w-full text-left border-collapse text-xs">
+                                      <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase">
+                                          <th className="px-4 py-2.5 font-mono">Req/Slip No</th>
+                                          <th className="px-4 py-2.5">Date</th>
+                                          <th className="px-4 py-2.5">Driver</th>
+                                          <th className="px-4 py-2.5">Location</th>
+                                          <th className="px-4 py-2.5">Qty (L)</th>
+                                          <th className="px-4 py-2.5">Expense</th>
+                                          <th className="px-4 py-2.5 text-right">KM Readings</th>
+                                          <th className="px-4 py-2.5">Slip</th>
+                                          <th className="px-4 py-2.5">Status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 text-slate-600">
+                                        {vehicle.records.map((rec) => {
+                                          const locText =
+                                            rec.location === 'Others'
+                                              ? rec.customLocation || 'Others'
+                                              : `Location ${rec.location}`;
+                                          return (
+                                            <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                                              <td className="px-4 py-2 font-bold font-mono text-slate-800">
+                                                {rec.slipNo || rec.requestNo}
+                                              </td>
+                                              <td className="px-4 py-2">
+                                                {formatDate(rec.fillingDate || rec.requestDate)}
+                                              </td>
+                                              <td className="px-4 py-2 font-semibold text-slate-700">
+                                                {rec.issuedTo}
+                                              </td>
+                                              <td className="px-4 py-2">{locText}</td>
+                                              <td className="px-4 py-2">{rec.qty ? `${rec.qty} L` : '—'}</td>
+                                              <td className="px-4 py-2">
+                                                {rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}
+                                              </td>
+                                              <td className="px-4 py-2 text-right">
+                                                <div className="text-[10px] text-slate-400">Last: {rec.lastKmReading} KM</div>
+                                                <div className="text-[10px] font-bold text-indigo-500">
+                                                  Fill: {rec.currentKmReading || '—'} KM
+                                                </div>
+                                              </td>
+                                              <td className="px-4 py-2">
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedSlipRequest(rec);
+                                                  }}
+                                                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
+                                                >
+                                                  View
+                                                </button>
+                                              </td>
+                                              <td className="px-4 py-2">
+                                                <StatusTag status={rec.status} />
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* Filtered View: Detailed Flat Records Log */
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+              <h3 className="text-sm font-bold text-slate-800 font-sans">Filtered Records Log</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 font-bold text-slate-400 uppercase bg-slate-50/70">
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Location</th>
+                    <th className="px-4 py-3 font-mono">Vehicle</th>
+                    <th className="px-4 py-3">Driver</th>
+                    <th className="px-4 py-3 font-mono">Slip-No</th>
+                    <th className="px-4 py-3">Amount</th>
+                    <th className="px-4 py-3">Qty</th>
+                    <th className="px-4 py-3">Rate</th>
+                    <th className="px-4 py-3">Slip-Img</th>
+                    <th className="px-4 py-3">Mileage</th>
+                    <th className="px-4 py-3">Last Mileage</th>
+                    <th className="px-4 py-3">Diff in Mileage</th>
+                    <th className="px-4 py-3">Fuel Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-600">
+                  {filteredRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={13} className="px-4 py-8 text-center text-slate-400">
+                        No requests match the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRequests.map((req) => {
+                      const locText =
+                        req.location === 'Others' ? req.customLocation || 'Others' : `Location ${req.location}`;
+                      const recStats = getSingleRecordMetrics(req);
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3">{formatDate(req.fillingDate || req.requestDate)}</td>
+                          <td className="px-4 py-3 font-medium">{locText}</td>
+                          <td className="px-4 py-3 font-bold text-indigo-600 font-mono tracking-wider">{req.vehicleNo}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-700">{req.issuedTo}</td>
+                          <td className="px-4 py-3 font-mono font-bold text-slate-500">{req.slipNo || '—'}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800">
+                            {req.totalAmount ? formatCurrency(req.totalAmount) : '—'}
+                          </td>
+                          <td className="px-4 py-3">{req.qty ? `${req.qty} L` : '—'}</td>
+                          <td className="px-4 py-3">{req.rate ? `${formatCurrency(req.rate)}/L` : '—'}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setSelectedSlipRequest(req)}
+                              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+                            >
+                              <Eye size={12} />
+                              View
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">{recStats.expected}</td>
+                          <td className="px-4 py-3 font-mono">{req.lastKmReading} KM</td>
+                          <td className={`px-4 py-3 font-bold ${
+                            recStats.diff.includes('-') ? 'text-emerald-600' : 'text-rose-500'
+                          }`}>
+                            {recStats.diff}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">
+                              {getFuelType(req.vehicleNo)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : (
+        /* Standard User View: Shows simple My Requests Table */
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[350px]">
+          <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+            <h3 className="text-sm font-bold text-slate-800 font-sans">My Request History</h3>
+          </div>
+          <div className="flex-1 overflow-x-auto min-h-0">
+            <TableWrapper
+              headers={['Request No', 'Slip No', 'Vehicle No', 'Odometer Reading', 'Mileage', 'Location', 'Status']}
+              data={requests}
+              emptyMessage="No fuel requests logged"
+              renderRow={(req) => {
+                const locationText =
+                  req.location === 'Others' ? req.customLocation || 'Others' : `Location ${req.location}`;
+                return (
+                  <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
+                    <td className="px-5 py-3 text-sm font-bold text-slate-500 font-mono">{req.slipNo || '—'}</td>
+                    <td className="px-5 py-3 text-sm font-semibold text-slate-700">{req.vehicleNo}</td>
+                    <td className="px-5 py-3 text-sm text-slate-600 font-mono">{req.lastKmReading} KM</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 font-mono">
+                      {req.mileage ? `${req.mileage} KM/L` : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-slate-600">{locationText}</td>
+                    <td className="px-5 py-3">
+                      <StatusTag status={req.status} />
+                    </td>
+                  </tr>
+                );
+              }}
+            />
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Bottom Tables */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 min-h-0">
-        {/* Recent Follow-ups */}
-        <div className="flex flex-col min-h-0">
-          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
-            <PhoneCall size={16} className="text-indigo-500" />
-            Recent Customer Follow-ups
-          </h3>
-          <TableWrapper
-            headers={['Customer', 'Invoice No', 'Note', 'Call Date']}
-            data={recentFollowUps}
-            emptyMessage="No recent follow-ups logged"
-            renderRow={(fu, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                <td className="px-5 py-3 text-sm font-bold text-slate-700">{fu.customerName}</td>
-                <td className="px-5 py-3">
-                  <span className="text-xs font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{fu.invoiceNo}</span>
-                </td>
-                <td className="px-5 py-3">
-                  <p className="text-xs text-slate-500 line-clamp-2 max-w-xs">{fu.note}</p>
-                </td>
-                <td className="px-5 py-3 whitespace-nowrap text-xs font-semibold text-slate-600">{formatDate(fu.nextCallingDate)}</td>
-              </tr>
-            )}
-          />
-        </div>
-
-        {/* Top Pending */}
-        <div className="flex flex-col min-h-0">
-          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-3">
-            <IndianRupee size={16} className="text-amber-500" />
-            Top Pending Invoices
-          </h3>
-          <TableWrapper
-            headers={['Customer', 'Invoice No', 'Status', 'Pending']}
-            data={pendingPayments}
-            emptyMessage="No pending invoices"
-            renderRow={(sale, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                <td className="px-5 py-3 text-sm font-bold text-slate-700">{sale.customerName}</td>
-                <td className="px-5 py-3">
-                  <span className="text-xs font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{sale.invoiceNo}</span>
-                </td>
-                <td className="px-5 py-3"><StatusTag status={sale.status} /></td>
-                <td className="px-5 py-3 text-sm font-bold text-slate-800">{formatCurrency(sale.pendingAmount)}</td>
-              </tr>
-            )}
-          />
-        </div>
-      </div>
+      {/* Slip Preview Modal */}
+      {selectedSlipRequest && (
+        <SlipPreviewModal
+          isOpen={!!selectedSlipRequest}
+          onClose={() => setSelectedSlipRequest(null)}
+          request={selectedSlipRequest}
+        />
+      )}
     </div>
   );
 }

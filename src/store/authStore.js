@@ -28,6 +28,13 @@ const useAuthStore = create((set) => ({
     localStorage.removeItem('user');
   },
   
+  updateUser: (updatedUser) => {
+    set({
+      user: updatedUser
+    });
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  },
+  
   initializeAuth: () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {

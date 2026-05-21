@@ -1,20 +1,43 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Settings,
   LogOut as LogOutIcon,
   X,
   LayoutGrid,
-  CreditCard,
-  GitCompare,
-  Megaphone,
-  Wallet
+  FileText,
+  Fuel,
+  Wallet,
+  Car,
+  User as UserIcon
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import divineLogo from '../Assets/divine-logo.svg';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
+
+  const getStageName = () => {
+    switch (location.pathname) {
+      case '/dashboard':
+        return 'Dashboard';
+      case '/request-filling':
+        return 'Request Filling';
+      case '/actual-filling':
+        return 'Actual Filling';
+      case '/payment':
+        return 'Payments';
+      case '/master':
+        return 'Vehicle Master';
+      case '/profile':
+        return 'Profile';
+      case '/settings':
+        return 'Settings';
+      default:
+        return 'Fuel System';
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -22,18 +45,18 @@ const Sidebar = ({ isOpen, onClose }) => {
   };
 
   const adminMenuItems = [
-    { path: '/dashboard',   icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/receivables', icon: CreditCard,   label: 'Receivables' },
-    { path: '/compare',     icon: GitCompare,   label: 'Compare' },
-    { path: '/campaigns',   icon: Megaphone,    label: 'Campaigns' },
-    { path: '/settings',    icon: Settings,     label: 'Settings' },
+    { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
+    { path: '/request-filling', icon: FileText,     label: 'Request Filling' },
+    { path: '/actual-filling',  icon: Fuel,         label: 'Actual Filling' },
+    { path: '/payment',         icon: Wallet,       label: 'Payments' },
+    { path: '/master',          icon: Car,          label: 'Vehicle Master' },
+    { path: '/settings',        icon: Settings,     label: 'Settings' },
   ];
 
   const employeeMenuItems = [
-    { path: '/dashboard',   icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/receivables', icon: CreditCard,   label: 'Receivables' },
-    { path: '/compare',     icon: GitCompare,   label: 'Compare' },
-    { path: '/campaigns',   icon: Megaphone,    label: 'Campaigns' },
+    { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
+    { path: '/request-filling', icon: FileText,     label: 'Request Filling' },
+    { path: '/profile',         icon: UserIcon,     label: 'Profile' },
   ];
 
   const menuItems = user?.role === 'ADMIN' ? adminMenuItems : employeeMenuItems;
@@ -52,11 +75,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside className={`fixed top-0 left-0 h-full w-64 sm:w-72 lg:w-56 2xl:w-60 bg-white border-r border-slate-200 z-50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
         {/* Logo */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-              <Wallet size={16} className="text-white" />
+          <div className="flex items-center gap-2">
+            <img src={divineLogo} alt="Divine Empire Logo" className="w-8 h-8 object-contain" />
+            <div className="flex flex-col">
+              <span className="text-sm font-extrabold text-slate-900 leading-tight">Divine Empire</span>
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">{getStageName()}</span>
             </div>
-            <span className="text-base font-bold text-slate-800 tracking-tight">PaySystem</span>
           </div>
           <button onClick={onClose} className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
             <X size={18} className="text-slate-400" />
@@ -92,8 +116,14 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* User Section */}
         <div className="p-3 border-t border-slate-100 flex-shrink-0">
           <div className="flex items-center gap-3 px-2 mb-3">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-indigo-600">{(user?.name || 'U')[0].toUpperCase()}</span>
+            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 border border-slate-200 bg-white">
+              {user?.profilePic ? (
+                <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
+                  {(user?.name || 'U')[0].toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-700 truncate">{user?.name || 'User'}</p>

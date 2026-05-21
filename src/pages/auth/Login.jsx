@@ -4,7 +4,7 @@ import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import { getUsers } from '../../utils/storageManager';
-import botivateLogoB from '../../Assets/divine-logo.svg';
+import divineLogo from '../../Assets/divine-logo.svg';
 
 const Login = () => {
   const [id, setId] = useState('');
@@ -62,17 +62,15 @@ const Login = () => {
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-6">
           
           {/* Logo Section */}
-          <div className="flex flex-col items-center space-y-6">
-            <div className="w-28 h-28 rounded-full border-4 border-sky-400 flex items-center justify-center shadow-lg bg-transparent">
-              <img
-                src={botivateLogoB}
-                alt="Botivate Logo"
-                className="w-24 h-24 object-contain"
-              />
-            </div>
-            <div className="text-center space-y-2">
-              <h1 className="text-4xl font-bold text-gray-900">Payment</h1>
-              <p className="text-gray-600 text-base font-medium">System</p>
+          <div className="flex flex-col items-center space-y-4">
+            <img
+              src={divineLogo}
+              alt="Divine Empire Logo"
+              className="w-24 h-24 object-contain"
+            />
+            <div className="text-center">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Divine Empire</h1>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">Fuel Management System</p>
             </div>
           </div>
 
@@ -190,7 +188,7 @@ const Login = () => {
       {/* Footer at Bottom */}
       <div className="py-6 text-center">
         <p className="text-xs text-sky-700">
-          Powered by <span className="font-semibold text-sky-600">Botivate</span>
+          Powered by <a className="font-semibold text-sky-600" href="https://botivate.in">Botivate</a>
         </p>
       </div>
     </div>

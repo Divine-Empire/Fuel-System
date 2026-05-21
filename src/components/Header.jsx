@@ -1,11 +1,33 @@
 import React from 'react';
 import { Bell, User, Menu, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const Header = ({ onMenuClick, user }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuthStore();
+
+  const getStageName = () => {
+    switch (location.pathname) {
+      case '/dashboard':
+        return 'Dashboard Overview';
+      case '/request-filling':
+        return 'Request Filling';
+      case '/actual-filling':
+        return 'Actual Filling';
+      case '/payment':
+        return 'Payments';
+      case '/master':
+        return 'Vehicle Master';
+      case '/profile':
+        return 'Profile';
+      case '/settings':
+        return 'Settings';
+      default:
+        return 'Fuel System';
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -18,15 +40,16 @@ const Header = ({ onMenuClick, user }) => {
 
         {/* Left: Mobile hamburger */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors"
-          >
-            <Menu size={20} />
-          </button>
-          <div className="hidden lg:block">
-            <p className="text-xs text-slate-400 font-medium">Welcome back,</p>
-            <p className="text-sm font-bold text-slate-700">{user?.name || 'Admin'}</p>
+          {user?.role !== 'USER' && (
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+          )}
+          <div className="block">
+            <p className="text-xl font-bold text-slate-800 tracking-tight">{getStageName()}</p>
           </div>
         </div>
 
@@ -48,8 +71,14 @@ const Header = ({ onMenuClick, user }) => {
                 {user?.role === 'ADMIN' ? 'Administrator' : 'Employee'}
               </p>
             </div>
-            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center shadow-sm group-hover:bg-indigo-700 transition-colors">
-              <span className="text-xs font-bold text-white">{(user?.name || 'A')[0].toUpperCase()}</span>
+            <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm flex items-center justify-center border border-slate-200 bg-white">
+              {user?.profilePic ? (
+                <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-indigo-600 flex items-center justify-center text-xs font-bold text-white group-hover:bg-indigo-700 transition-colors">
+                  {(user?.name || 'A')[0].toUpperCase()}
+                </div>
+              )}
             </div>
           </div>
         </div>

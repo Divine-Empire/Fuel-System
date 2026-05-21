@@ -1,104 +1,78 @@
-import { salesService } from './sales.service';
+import { fuelService } from './fuel.service';
 
 export const dashboardService = {
-  getDashboardData: (dateRange = null) => {
-    let sales = salesService.getSales();
+  getDashboardData: (dateRange = null, currentUser = null) => {
+    let rawRequests = fuelService.getFuelRequests();
+
+    // Filter requests for USER role
+    if (currentUser && currentUser.role === 'USER') {
+      rawRequests = rawRequests.filter(
+        (req) => req.issuedTo && req.issuedTo.toLowerCase() === currentUser.name.toLowerCase()
+      );
+    }
+
+    // Extract unique filter dropdown options from rawRequests (so they remain complete and stable)
+    const vehicles = Array.from(new Set(rawRequests.map((r) => r.vehicleNo).filter(Boolean))).sort();
+    const drivers = Array.from(new Set(rawRequests.map((r) => r.issuedTo).filter(Boolean))).sort();
+    const locations = Array.from(
+      new Set(
+        rawRequests
+          .map((r) => {
+            if (!r.location) return null;
+            return r.location === 'Others' ? (r.customLocation || 'Others') : `Location ${r.location}`;
+          })
+          .filter(Boolean)
+      )
+    ).sort();
+
+    let requests = [...rawRequests];
 
     // Apply global date filters if any
     if (dateRange && dateRange.start && dateRange.end) {
       const start = new Date(dateRange.start);
       const end = new Date(dateRange.end);
-      sales = sales.filter((sale) => {
-        const date = new Date(sale.invoiceDate);
+      requests = requests.filter((req) => {
+        const date = new Date(req.requestDate);
         return date >= start && date <= end;
       });
     }
 
     // Totals calculations
-    let totalRevenue = 0;
-    let receivedAmount = 0;
-    let pendingAmount = 0;
-    let overdueAmount = 0;
-    const uniqueCustomers = new Set();
-    const invoicesCount = sales.length;
+    const totalRequests = requests.length;
+    let pendingFilling = 0;
+    let completedFilling = 0;
+    let totalFuelExpense = 0;
+    let totalLitresFilled = 0;
+    const uniqueVehicles = new Set();
 
-    // Today mock reference date
-    const today = new Date('2026-05-20');
-
-    sales.forEach((sale) => {
-      totalRevenue += sale.totalAmount;
-      receivedAmount += sale.receivedAmount;
-      pendingAmount += sale.pendingAmount;
-      uniqueCustomers.add(sale.customerName);
-
-      // Overdue logic: pending amount > 0 AND invoiceDate is older than 10 days from 2026-05-20
-      const invoiceDate = new Date(sale.invoiceDate);
-      const diffTime = today - invoiceDate;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (sale.pendingAmount > 0 && diffDays > 10) {
-        overdueAmount += sale.pendingAmount;
+    requests.forEach((req) => {
+      if (req.vehicleNo) {
+        uniqueVehicles.add(req.vehicleNo);
+      }
+      if (req.status === 'pending') {
+        pendingFilling++;
+      } else if (req.status === 'completed') {
+        completedFilling++;
+        totalFuelExpense += req.totalAmount || 0;
+        totalLitresFilled += req.qty || 0;
       }
     });
-
-    // Recent Follow-ups widget
-    const recentFollowUps = [];
-    sales.forEach((sale) => {
-      sale.followUps.forEach((fu) => {
-        recentFollowUps.push({
-          saleId: sale.id,
-          invoiceNo: sale.invoiceNo,
-          customerName: sale.customerName,
-          note: fu.note,
-          nextCallingDate: fu.nextCallingDate,
-          createdAt: fu.createdAt
-        });
-      });
-    });
-    // Sort recent follow-ups by createdAt descending
-    recentFollowUps.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    // Revenue Trend Chart data (e.g. aggregate by date)
-    const trendMap = {};
-    sales.forEach((sale) => {
-      const dateStr = sale.invoiceDate;
-      if (!trendMap[dateStr]) {
-        trendMap[dateStr] = { date: dateStr, revenue: 0, received: 0 };
-      }
-      trendMap[dateStr].revenue += sale.totalAmount;
-      trendMap[dateStr].received += sale.receivedAmount;
-    });
-    const revenueTrend = Object.values(trendMap).sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
-    );
-
-    // Payment Status Pie Chart data
-    const statusCounts = { pending: 0, partial: 0, received: 0 };
-    sales.forEach((sale) => {
-      statusCounts[sale.status] = (statusCounts[sale.status] || 0) + 1;
-    });
-    const statusData = Object.entries(statusCounts).map(([status, value]) => ({
-      name: status.charAt(0).toUpperCase() + status.slice(1),
-      value
-    }));
-
-    // Pending Payments Table: top pending payments
-    const pendingPayments = sales
-      .filter((sale) => sale.pendingAmount > 0)
-      .sort((a, b) => b.pendingAmount - a.pendingAmount);
 
     return {
       metrics: {
-        totalRevenue,
-        receivedAmount,
-        pendingAmount,
-        overdueAmount,
-        customersCount: uniqueCustomers.size,
-        invoicesCount
+        totalRequests,
+        pendingFilling,
+        completedFilling,
+        totalFuelExpense,
+        totalLitresFilled,
+        vehiclesCount: uniqueVehicles.size,
       },
-      revenueTrend,
-      statusData,
-      recentFollowUps: recentFollowUps.slice(0, 5),
-      pendingPayments: pendingPayments.slice(0, 5)
+      requests,
+      filterOptions: {
+        vehicles,
+        drivers,
+        locations,
+      },
     };
-  }
+  },
 };
