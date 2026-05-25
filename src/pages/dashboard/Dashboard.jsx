@@ -21,6 +21,7 @@ import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
 import RequestFuelModal from '../../components/modals/RequestFuelModal';
 import { dashboardService } from '../../services/dashboard.service';
 import { vehicleService } from '../../services/vehicle.service';
+import { fuelService } from '../../services/fuel.service';
 import formatCurrency from '../../utils/formatCurrency';
 import formatDate from '../../utils/formatDate';
 import { useAuthStore } from '../../store/authStore';
@@ -33,26 +34,35 @@ export default function Dashboard() {
   const [selectedVehicle, setSelectedVehicle] = useState('');
   const [selectedDriver, setSelectedDriver] = useState('');
 
-  const [data, setData] = useState(null);
+  const [allRequests, setAllRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [masterVehicles, setMasterVehicles] = useState([]);
   const [expandedVehicles, setExpandedVehicles] = useState({});
   const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
-  const fetchDashboardData = () => {
+  const fetchDashboardData = async () => {
     setLoading(true);
-    const filter = startDate && endDate ? { start: startDate, end: endDate } : null;
-    const res = dashboardService.getDashboardData(filter, user);
-    setData(res);
-    setLoading(false);
+    try {
+      const rawRequests = await fuelService.getFuelRequestsFromSheet();
+      setAllRequests(rawRequests);
+      const list = await vehicleService.getVehiclesFromSheet();
+      setMasterVehicles(list);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchDashboardData();
-    const list = vehicleService.getVehicles();
-    setMasterVehicles(list);
-  }, [startDate, endDate]);
+  }, []);
+
+  const data = useMemo(() => {
+    const filter = startDate && endDate ? { start: startDate, end: endDate } : null;
+    return dashboardService.getDashboardData(allRequests, filter, user);
+  }, [allRequests, startDate, endDate, user]);
 
   const handleReset = () => {
     setStartDate('');
@@ -128,7 +138,7 @@ export default function Dashboard() {
       }
 
       const actualAvg = g.totalQty > 0 ? g.totalDistance / g.totalQty : 0;
-      const mileageDiff = g.expectedAvg - actualAvg;
+      const mileageDiff = (actualAvg > 0 && g.expectedAvg > 0) ? (actualAvg - g.expectedAvg) : 0;
 
       return {
         ...g,
@@ -203,13 +213,32 @@ export default function Dashboard() {
       const dist = (parseFloat(req.currentKmReading) || 0) - (parseFloat(req.lastKmReading) || 0);
       if (dist > 0) {
         actual = dist / req.qty;
-        diff = expected - actual;
+        diff = actual - expected;
       }
     }
+    
+    let diffText = '—';
+    let isBetter = false;
+    let isWorse = false;
+
+    if (actual > 0 && expected > 0) {
+      if (diff > 0) {
+        diffText = `+${diff.toFixed(2)} KM/L`;
+        isBetter = true;
+      } else if (diff < 0) {
+        diffText = `${diff.toFixed(2)} KM/L`;
+        isWorse = true;
+      } else {
+        diffText = '0.00 KM/L';
+      }
+    }
+
     return {
       expected: expected ? `${expected.toFixed(1)} KM/L` : '—',
       actual: actual ? `${actual.toFixed(2)} KM/L` : '—',
-      diff: actual ? `${diff.toFixed(2)} KM/L` : '—',
+      diff: diffText,
+      isBetter,
+      isWorse
     };
   };
 
@@ -220,7 +249,7 @@ export default function Dashboard() {
     return matched?.fuelType || 'Diesel';
   };
 
-  if (!data && loading) {
+  if (loading && allRequests.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
@@ -425,15 +454,15 @@ export default function Dashboard() {
                             <td
                               className={`px-5 py-4 text-sm font-bold ${
                                 vehicle.mileageDiff > 0
-                                  ? 'text-rose-500'
+                                  ? 'text-emerald-600'
                                   : vehicle.mileageDiff < 0
-                                  ? 'text-emerald-500'
+                                  ? 'text-rose-500'
                                   : 'text-slate-500'
                               }`}
                             >
                               {vehicle.mileageDiff !== 0
-                                ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff} KM/L`
-                                : '0.0 KM/L'}
+                                ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L`
+                                : '0.00 KM/L'}
                             </td>
                             <td className="px-5 py-4 text-slate-400">
                               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -581,7 +610,7 @@ export default function Dashboard() {
                           <td className="px-4 py-3">{recStats.expected}</td>
                           <td className="px-4 py-3 font-mono">{req.lastKmReading} KM</td>
                           <td className={`px-4 py-3 font-bold ${
-                            recStats.diff.includes('-') ? 'text-emerald-600' : 'text-rose-500'
+                            recStats.isBetter ? 'text-emerald-600' : recStats.isWorse ? 'text-rose-500' : 'text-slate-500'
                           }`}>
                             {recStats.diff}
                           </td>

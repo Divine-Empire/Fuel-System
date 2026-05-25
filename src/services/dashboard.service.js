@@ -1,8 +1,5 @@
-import { fuelService } from './fuel.service';
-
 export const dashboardService = {
-  getDashboardData: (dateRange = null, currentUser = null) => {
-    let rawRequests = fuelService.getFuelRequests();
+  getDashboardData: (rawRequests = [], dateRange = null, currentUser = null) => {
 
     // Filter requests for USER role
     if (currentUser && currentUser.role === 'USER') {

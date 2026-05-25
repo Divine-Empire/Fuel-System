@@ -14,11 +14,12 @@ export default function Master() {
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null); // { docType, docImage }
+  const [activeDocsVehicle, setActiveDocsVehicle] = useState(null);
 
-  const loadVehicles = () => {
+  const loadVehicles = async () => {
     setLoading(true);
     try {
-      const data = vehicleService.getVehicles();
+      const data = await vehicleService.getVehiclesFromSheet();
       setVehicles(data);
     } catch (err) {
       console.error(err);
@@ -35,7 +36,7 @@ export default function Master() {
   const handleDelete = (id, vehicleNo) => {
     if (window.confirm(`Are you sure you want to delete vehicle ${vehicleNo}?`)) {
       try {
-        vehicleService.deleteVehicle(id);
+        vehicleService.deleteVehicle(id, vehicleNo);
         toast.success(`Vehicle ${vehicleNo} deleted successfully`);
         loadVehicles();
       } catch (err) {
@@ -84,13 +85,14 @@ export default function Master() {
       {/* Vehicles Table */}
       <div className="flex-1 min-h-0 flex flex-col">
         <TableWrapper
-          headers={['Vehicle No', "Driver's Name", 'Fuel Type', 'Mileage', 'Last KM Reading', 'Documents', 'Actions']}
+          headers={['Vehicle No', 'Vehicle Name', "Driver's Name", 'Fuel Type', 'Mileage', 'Last KM Reading', 'Documents']}
           data={displayedVehicles}
           loading={loading}
           emptyMessage="No registered vehicles found"
           renderRow={(v) => (
             <tr key={v.id} className="hover:bg-slate-50 transition-colors">
               <td className="px-5 py-4 text-sm font-bold text-slate-900 font-mono">{v.vehicleNo}</td>
+              <td className="px-5 py-4 text-sm text-slate-600 font-semibold">{v.vehicleName || '—'}</td>
               <td className="px-5 py-4 text-sm text-slate-600 font-semibold">{v.driverName || '—'}</td>
               <td className="px-5 py-4 text-xs font-semibold text-slate-500">
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
@@ -101,37 +103,22 @@ export default function Master() {
                   {v.fuelType}
                 </span>
               </td>
-              <td className="px-5 py-4 text-sm font-medium text-slate-600">{v.mileage} KM/L</td>
+              <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                {v.mileage && v.mileage !== '—' && v.mileage !== 'NA' ? `${v.mileage} KM/L` : v.mileage || '—'}
+              </td>
               <td className="px-5 py-4 text-sm font-semibold text-slate-800">{v.lastKmReading.toLocaleString()} KM</td>
               <td className="px-5 py-4">
                 {v.documents && v.documents.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5 max-w-[280px]">
-                    {v.documents.map((doc, idx) => (
-                      <button
-                        key={doc.id || idx}
-                        onClick={() => setPreviewDoc(doc)}
-                        className="flex items-center gap-1 text-[10px] font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-colors"
-                        title="View Document"
-                      >
-                        <ImageIcon size={10} />
-                        {doc.docType}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => setActiveDocsVehicle(v)}
+                    className="inline-flex items-center gap-1 text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 px-3.5 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                  >
+                    <Eye size={13} />
+                    View ({v.documents.length})
+                  </button>
                 ) : (
                   <span className="text-xs text-slate-400 italic">No docs attached</span>
                 )}
-              </td>
-              <td className="px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleDelete(v.id, v.vehicleNo)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                    title="Delete Vehicle"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
               </td>
             </tr>
           )}
@@ -145,6 +132,51 @@ export default function Master() {
           onClose={() => setIsAddModalOpen(false)}
           onSuccess={loadVehicles}
         />
+      )}
+
+      {/* Documents List Modal */}
+      {activeDocsVehicle && (
+        <ModalWrapper
+          isOpen={!!activeDocsVehicle}
+          onClose={() => setActiveDocsVehicle(null)}
+          title={`Documents: ${activeDocsVehicle.vehicleNo}`}
+          maxWidth="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Document Name</th>
+                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {activeDocsVehicle.documents.map((doc, idx) => (
+                    <tr key={doc.id || idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3.5 text-sm font-semibold text-slate-700">{doc.docType}</td>
+                      <td className="px-4 py-3.5 text-sm text-right">
+                        <button
+                          onClick={() => setPreviewDoc(doc)}
+                          className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                        >
+                          <Eye size={12} />
+                          View Image
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              onClick={() => setActiveDocsVehicle(null)}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm w-full"
+            >
+              Close List
+            </button>
+          </div>
+        </ModalWrapper>
       )}
 
       {/* Document Preview Modal */}

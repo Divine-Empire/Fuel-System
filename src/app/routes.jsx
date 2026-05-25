@@ -6,7 +6,7 @@ import Settings from '../pages/Settings';
 import Dashboard from '../pages/dashboard/Dashboard';
 import ActualFilling from '../pages/actual-filling/ActualFilling';
 import Payment from '../pages/payment/payment';
-import Master from '../pages/vehicle-master/master';
+import Master from '../pages/vehicle-master/vehicle-master';
 import Profile from '../pages/profile/profile';
 import { useAuthStore } from '../store/authStore';
 

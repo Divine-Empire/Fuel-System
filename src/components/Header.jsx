@@ -40,14 +40,12 @@ const Header = ({ onMenuClick, user }) => {
 
         {/* Left: Mobile hamburger */}
         <div className="flex items-center gap-3">
-          {user?.role !== 'USER' && (
-            <button
-              onClick={onMenuClick}
-              className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors"
-            >
-              <Menu size={20} />
-            </button>
-          )}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors"
+          >
+            <Menu size={20} />
+          </button>
           <div className="block">
             <p className="text-xl font-bold text-slate-800 tracking-tight">{getStageName()}</p>
           </div>

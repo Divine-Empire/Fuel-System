@@ -33,7 +33,7 @@ function formatDateTime(dateStr, createdAtStr) {
   }
 }
 
-export async function downloadFuelSlip(slipData) {
+export async function downloadFuelSlip(slipData, triggerDownload = true, returnPdfBase64 = false) {
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.top = '-9999px';
@@ -154,15 +154,26 @@ export async function downloadFuelSlip(slipData) {
     pdf.addImage(dataUrl, 'PNG', x, 155, imgWidth, imgHeight, undefined, 'FAST');
 
     // Save/Download the PDF file
-    pdf.save(`${slipData.slipNo || slipData.requestNo || 'slip'}.pdf`);
-    
+    if (triggerDownload) {
+      pdf.save(`${slipData.slipNo || slipData.requestDate || 'slip'}.pdf`);
+    }
+
     document.body.removeChild(container);
+
+    if (returnPdfBase64) {
+      const pdfBase64 = pdf.output('datauristring').split('base64,')[1];
+      return {
+        dataUrl,
+        pdfBase64
+      };
+    }
+
     return dataUrl;
   } catch (error) {
     console.error('Error generating PDF fuel slip:', error);
     if (container.parentNode) {
       document.body.removeChild(container);
     }
-    return '';
+    return returnPdfBase64 ? { dataUrl: '', pdfBase64: '' } : '';
   }
 }

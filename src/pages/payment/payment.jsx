@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Search, Image as ImageIcon, CheckSquare, Square, CheckCircle2 } from 'lucide-react';
+import { Search, Image as ImageIcon, CheckSquare, Square, CheckCircle2, IndianRupee, Fuel, FileText } from 'lucide-react';
 import TableWrapper from '../../components/TableWrapper';
 import ModalWrapper from '../../components/ModalWrapper';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import MetricCard from '../../components/MetricCard';
 import { fuelService } from '../../services/fuel.service';
 import formatCurrency from '../../utils/formatCurrency';
 import formatDate from '../../utils/formatDate';
@@ -24,10 +26,12 @@ export default function Payment() {
   const [previewImage, setPreviewImage] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('');
 
-  const loadRequests = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadRequests = async () => {
     setLoading(true);
     try {
-      const data = fuelService.getFuelRequests();
+      const data = await fuelService.getFuelRequestsFromSheet();
       setRequests(data);
     } catch (err) {
       console.error(err);
@@ -42,17 +46,17 @@ export default function Payment() {
   }, []);
 
   // Derive dropdown lists from completed requests
-  const completedRequests = requests.filter(req => req.status === 'completed');
+  const completedRequests = requests.filter(req => req.planned2 !== '');
   const uniqueVehicles = Array.from(new Set(completedRequests.map(r => r.vehicleNo).filter(Boolean))).sort();
   const uniqueDrivers = Array.from(new Set(completedRequests.map(r => r.issuedTo).filter(Boolean))).sort();
 
   // Filter requests based on tab, search query, date range, driver, and vehicle
   const displayedRequests = requests.filter((req) => {
     // Only completed fuel fillings can go to payment
-    if (req.status !== 'completed') return false;
+    if (req.planned2 === '') return false;
 
     // Tab filter
-    const isPaid = req.paymentStatus === 'paid';
+    const isPaid = req.actual2 !== '';
     const tabMatch = activeTab === 'pending' ? !isPaid : isPaid;
     if (!tabMatch) return false;
 
@@ -96,6 +100,34 @@ export default function Payment() {
     return true;
   });
 
+  const stats = React.useMemo(() => {
+    let totalAmt = 0;
+    let totalLitres = 0;
+    let totalReqs = displayedRequests.length;
+    let selectedAmt = 0;
+    let selectedCount = 0;
+
+    displayedRequests.forEach((req) => {
+      totalAmt += req.totalAmount || 0;
+      totalLitres += req.qty || 0;
+      if (selectedIds.includes(req.id)) {
+        selectedAmt += req.totalAmount || 0;
+        selectedCount += 1;
+      }
+    });
+
+    const avgRate = totalLitres > 0 ? (totalAmt / totalLitres) : 0;
+
+    return {
+      totalAmt,
+      totalLitres,
+      totalReqs,
+      selectedAmt,
+      selectedCount,
+      avgRate
+    };
+  }, [displayedRequests, selectedIds]);
+
   const handleSelectAll = (checked) => {
     const visibleIds = displayedRequests.map((r) => r.id);
     if (checked) {
@@ -114,16 +146,24 @@ export default function Payment() {
     }
   };
 
-  const handleSubmitPayments = () => {
+  const handleSubmitPayments = async () => {
     if (selectedIds.length === 0) return;
+    setSubmitting(true);
     try {
-      fuelService.processPayments(selectedIds);
+      const selectedRequests = requests.filter((req) => selectedIds.includes(req.id));
+      for (const req of selectedRequests) {
+        if (req.rowIndex) {
+          await fuelService.processPaymentToSheet(req.rowIndex);
+        }
+      }
       toast.success(`Successfully processed payments for ${selectedIds.length} records!`);
       setSelectedIds([]);
-      loadRequests();
+      await loadRequests();
     } catch (err) {
       console.error(err);
       toast.error('Failed to process payments');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -156,6 +196,9 @@ export default function Payment() {
 
   return (
     <div className="space-y-5 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pt-2">
+      {submitting && (
+        <LoadingSpinner message="Processing Payments..." fullPage={true} />
+      )}
       {/* Header Actions */}
       <div className="flex justify-end items-center flex-shrink-0">
         {activeTab === 'pending' && selectedIds.length > 0 && (
@@ -166,6 +209,48 @@ export default function Payment() {
             <CheckCircle2 size={14} />
             Submit Payments ({selectedIds.length})
           </button>
+        )}
+      </div>
+
+      {/* Metric Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-shrink-0">
+        <MetricCard
+          title="Total Amount"
+          value={formatCurrency(stats.totalAmt)}
+          icon={IndianRupee}
+          description="Across filtered payments"
+          gradient="from-emerald-500 to-teal-500"
+        />
+        <MetricCard
+          title="Total Litres"
+          value={`${stats.totalLitres.toLocaleString('en-IN', { maximumFractionDigits: 1 })} L`}
+          icon={Fuel}
+          description="Fuel volume filtered"
+          gradient="from-indigo-500 to-purple-500"
+        />
+        <MetricCard
+          title="Total Payments"
+          value={stats.totalReqs.toString()}
+          icon={FileText}
+          description="Matching requests count"
+          gradient="from-amber-500 to-orange-500"
+        />
+        {activeTab === 'pending' ? (
+          <MetricCard
+            title="Selected Amount"
+            value={formatCurrency(stats.selectedAmt)}
+            icon={CheckSquare}
+            description={`${stats.selectedCount} of ${stats.totalReqs} selected`}
+            gradient="from-blue-500 to-indigo-500"
+          />
+        ) : (
+          <MetricCard
+            title="Average Fuel Price"
+            value={`₹${stats.avgRate.toFixed(2)}/L`}
+            icon={IndianRupee}
+            description="Avg rate per litre"
+            gradient="from-blue-500 to-indigo-500"
+          />
         )}
       </div>
 
@@ -214,53 +299,57 @@ export default function Payment() {
         {/* Filters and Search Container */}
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           {/* Start Date */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-full cursor-pointer"
               title="Start Date"
             />
           </div>
 
           {/* End Date */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-full cursor-pointer"
               title="End Date"
             />
           </div>
 
           {/* Vehicle Dropdown */}
-          <select
-            value={selectedVehicle}
-            onChange={(e) => setSelectedVehicle(e.target.value)}
-            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
-          >
-            <option value="">All Vehicles</option>
-            {uniqueVehicles.map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
+          <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
+            <select
+              value={selectedVehicle}
+              onChange={(e) => setSelectedVehicle(e.target.value)}
+              className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer w-full"
+            >
+              <option value="">All Vehicles</option>
+              {uniqueVehicles.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Driver Dropdown */}
-          <select
-            value={selectedDriver}
-            onChange={(e) => setSelectedDriver(e.target.value)}
-            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
-          >
-            <option value="">All Drivers</option>
-            {uniqueDrivers.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
+          <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
+            <select
+              value={selectedDriver}
+              onChange={(e) => setSelectedDriver(e.target.value)}
+              className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer w-full"
+            >
+              <option value="">All Drivers</option>
+              {uniqueDrivers.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Search */}
-          <div className="relative w-full md:w-64">
+          <div className="relative w-full sm:w-64 flex-1 sm:flex-initial">
             <Search size={14} className="absolute left-3 top-3 text-slate-400" />
             <input
               type="text"
@@ -388,7 +477,7 @@ export default function Payment() {
                   </span>
                 </td>
                 <td className="px-5 py-3 text-xs text-slate-500 font-semibold">{formatDate(req.fillingDate)}</td>
-                <td className="px-5 py-3 text-xs text-emerald-600 font-bold">{formatDate(req.paymentDate)}</td>
+                <td className="px-5 py-3 text-xs text-emerald-600 font-bold">{formatDate(req.actual2)}</td>
                 <td className="px-5 py-3">
                   <button
                     onClick={() => handleViewImage(req.readingImage, `KM Reading - ${req.currentKmReading} KM`)}

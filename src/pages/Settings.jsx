@@ -75,7 +75,7 @@ export default function Settings() {
               Register New Account
             </h3>
             <form onSubmit={handleAddUserSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Username / ID</label>
                   <input

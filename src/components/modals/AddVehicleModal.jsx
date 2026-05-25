@@ -6,6 +6,7 @@ import { Upload, Plus, Trash2, Camera, ShieldAlert } from 'lucide-react';
 
 export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
   const [vehicleNo, setVehicleNo] = useState('');
+  const [vehicleName, setVehicleName] = useState('');
   const [mileage, setMileage] = useState('');
   const [lastKmReading, setLastKmReading] = useState('');
   const [fuelType, setFuelType] = useState('Diesel');
@@ -62,6 +63,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
     e.preventDefault();
 
     if (!vehicleNo.trim()) return toast.error('Vehicle No is required');
+    if (!vehicleName.trim()) return toast.error('Vehicle Name is required');
     if (!mileage || parseFloat(mileage) <= 0) return toast.error('Please enter a valid mileage');
     if (!lastKmReading || parseFloat(lastKmReading) < 0) {
       return toast.error('Please enter a valid Last KM Reading');
@@ -79,8 +81,9 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
 
     setSubmitting(true);
     try {
-      vehicleService.createVehicle({
+      await vehicleService.createVehicleToSheet({
         vehicleNo: vehicleNo.trim().toUpperCase(),
+        vehicleName: vehicleName.trim(),
         mileage: parseFloat(mileage),
         lastKmReading: parseFloat(lastKmReading),
         fuelType,
@@ -92,6 +95,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
       
       // Reset state
       setVehicleNo('');
+      setVehicleName('');
       setMileage('');
       setLastKmReading('');
       setFuelType('Diesel');
@@ -117,34 +121,54 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
 
   return (
     <ModalWrapper isOpen={isOpen} onClose={onClose} title="Register New Vehicle" maxWidth="max-w-lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Vehicle No</label>
-            <input
-              type="text"
-              value={vehicleNo}
-              onChange={(e) => setVehicleNo(e.target.value)}
-              placeholder="e.g. CG04AB1234"
-              className={inputCls}
-              required
-              disabled={submitting}
-            />
+      <div className="relative">
+        {submitting && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center min-h-[300px] rounded-xl">
+            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="mt-4 text-xs font-bold text-slate-700 uppercase tracking-wider">Uploading Documents & Registering Vehicle...</p>
           </div>
+        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Vehicle No</label>
+              <input
+                type="text"
+                value={vehicleNo}
+                onChange={(e) => setVehicleNo(e.target.value)}
+                placeholder="e.g. CG04AB1234"
+                className={inputCls}
+                required
+                disabled={submitting}
+              />
+            </div>
 
-          <div>
-            <label className={labelCls}>Driver Name (Optional)</label>
-            <input
-              type="text"
-              value={driverName}
-              onChange={(e) => setDriverName(e.target.value)}
-              placeholder="e.g. Rohit Sharma"
-              className={inputCls}
-              disabled={submitting}
-            />
+            <div>
+              <label className={labelCls}>Vehicle Name</label>
+              <input
+                type="text"
+                value={vehicleName}
+                onChange={(e) => setVehicleName(e.target.value)}
+                placeholder="e.g. Tipper Truck"
+                className={inputCls}
+                required
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Driver Name (Optional)</label>
+              <input
+                type="text"
+                value={driverName}
+                onChange={(e) => setDriverName(e.target.value)}
+                placeholder="e.g. Rohit Sharma"
+                className={inputCls}
+                disabled={submitting}
+              />
+            </div>
           </div>
-        </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -290,6 +314,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
           </button>
         </div>
       </form>
+      </div>
     </ModalWrapper>
   );
 }

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Play, Eye, Download, Image as ImageIcon, Search, Calendar, Plus } from 'lucide-react';
+import { Play, Download, Image as ImageIcon, Search, Plus } from 'lucide-react';
 import TableWrapper from '../../components/TableWrapper';
 import ModalWrapper from '../../components/ModalWrapper';
 import ProcessFuelModal from '../../components/modals/ProcessFuelModal';
-import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
 import RequestFuelModal from '../../components/modals/RequestFuelModal';
 import { fuelService } from '../../services/fuel.service';
-import { downloadFuelSlip } from '../../utils/generateFuelSlip';
 import formatCurrency from '../../utils/formatCurrency';
 import formatDate from '../../utils/formatDate';
 
@@ -17,19 +15,23 @@ export default function ActualFilling() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Filter states
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
+
   // Modal actions
   const [selectedProcessRequest, setSelectedProcessRequest] = useState(null);
-  const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   
   // Image preview state
   const [previewImage, setPreviewImage] = useState(null);
   const [previewTitle, setPreviewTitle] = useState('');
 
-  const loadRequests = () => {
+  const loadRequests = async () => {
     setLoading(true);
     try {
-      const data = fuelService.getFuelRequests();
+      const data = await fuelService.getFuelRequestsFromSheet();
       setRequests(data);
     } catch (err) {
       console.error(err);
@@ -43,7 +45,23 @@ export default function ActualFilling() {
     loadRequests();
   }, []);
 
-  // Filter requests based on tab and search query
+  // Dynamic vehicle options from the current tab's records
+  const activeTabVehicles = React.useMemo(() => {
+    const tabRequests = requests.filter((req) => 
+      activeTab === 'pending' ? req.status === 'pending' : req.status === 'completed'
+    );
+    const unique = new Set(tabRequests.map(r => r.vehicleNo).filter(Boolean));
+    return Array.from(unique).sort();
+  }, [requests, activeTab]);
+
+  // Reset filters on tab switch
+  useEffect(() => {
+    setStartDate('');
+    setEndDate('');
+    setSelectedVehicle('');
+  }, [activeTab]);
+
+  // Filter requests based on tab, vehicle, date range, and search query
   const displayedRequests = requests.filter((req) => {
     // Tab match
     const tabMatch = activeTab === 'pending' 
@@ -51,6 +69,25 @@ export default function ActualFilling() {
       : req.status === 'completed';
     
     if (!tabMatch) return false;
+
+    // Vehicle dropdown match
+    if (selectedVehicle && req.vehicleNo !== selectedVehicle) {
+      return false;
+    }
+
+    // Date range match
+    if (startDate || endDate) {
+      if (!req.requestDate) return false;
+      const reqDateObj = new Date(req.requestDate);
+      if (startDate) {
+        const startObj = new Date(startDate);
+        if (reqDateObj < startObj) return false;
+      }
+      if (endDate) {
+        const endObj = new Date(endDate);
+        if (reqDateObj > endObj) return false;
+      }
+    }
 
     // Search query match
     if (searchQuery.trim()) {
@@ -67,14 +104,11 @@ export default function ActualFilling() {
     return true;
   });
 
-  const handleDownloadSlip = async (req) => {
-    try {
-      await downloadFuelSlip(req);
-      const name = req.slipNo || req.requestNo;
-      toast.success(`Slip ${name} downloaded!`);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to download slip');
+  const handleDownloadSlip = (req) => {
+    if (req.slipCopy) {
+      window.open(req.slipCopy, '_blank');
+    } else {
+      toast.error('No slip link available');
     }
   };
 
@@ -119,20 +153,73 @@ export default function ActualFilling() {
         </div>
 
         {/* Search and Action Button */}
-        <div className="flex w-full md:w-auto items-center gap-3">
-          <div className="relative flex-1 md:w-80">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Start Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 w-full sm:w-auto justify-between sm:justify-start flex-1 sm:flex-initial">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">From</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent border-0 text-xs text-slate-700 focus:outline-none p-0 w-24 cursor-pointer"
+            />
+          </div>
+
+          {/* End Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 w-full sm:w-auto justify-between sm:justify-start flex-1 sm:flex-initial">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">To</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent border-0 text-xs text-slate-700 focus:outline-none p-0 w-24 cursor-pointer"
+            />
+          </div>
+
+          {/* Vehicle Select */}
+          <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
+            <select
+              value={selectedVehicle}
+              onChange={(e) => setSelectedVehicle(e.target.value)}
+              className="block text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer h-[38px] w-full sm:w-auto sm:min-w-[130px]"
+            >
+              <option value="">All Vehicles</option>
+              {activeTabVehicles.map((vNo) => (
+                <option key={vNo} value={vNo}>
+                  {vNo}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative w-full sm:w-64 flex-1 sm:flex-initial">
             <Search size={14} className="absolute left-3 top-3 text-slate-400" />
             <input
               type="text"
-              placeholder={activeTab === 'pending' ? "Search pending (req, slip, vehicle)..." : "Search history (bill, vehicle, slip, req)..."}
+              placeholder={activeTab === 'pending' ? "Search pending..." : "Search history..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={inputCls}
             />
           </div>
+
+          {/* Clear Filters Button (conditional) */}
+          {(startDate || endDate || selectedVehicle) && (
+            <button
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setSelectedVehicle('');
+              }}
+              className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold px-3 py-2 rounded-xl transition border border-rose-200 h-[38px] w-full sm:w-auto flex-1 sm:flex-initial justify-center items-center flex"
+            >
+              Clear
+            </button>
+          )}
+
           <button
             onClick={() => setIsRequestModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap"
+            className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap h-[38px] w-full sm:w-auto flex-1 sm:flex-initial"
             id="request-fuel-btn"
           >
             <Plus size={15} />
@@ -145,14 +232,14 @@ export default function ActualFilling() {
       <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === 'pending' ? (
           <TableWrapper
-            headers={['Actions', 'Request No', 'Slip No', 'Vehicle', 'Last KM Reading', 'Expected Avg.', 'Issued To', 'Location', 'Slip']}
+            headers={['Actions', 'Request No', 'Slip No', 'Vehicle', 'Vehicle Name', 'Last KM Reading', 'Expected Avg.', 'Issued To', 'Location', 'Slip']}
             data={displayedRequests}
             loading={loading}
             emptyMessage="No pending fuel filling requests"
             renderRow={(req) => {
               const locationText = req.location === 'Others' 
-                ? (req.customLocation || 'Others') 
-                : `Location ${req.location}`;
+                ? 'Others' 
+                : (req.location && req.location.length === 1 ? `Location ${req.location}` : (req.location || '—'));
 
               return (
                 <tr key={req.id} className="hover:bg-slate-50 transition-colors">
@@ -168,18 +255,23 @@ export default function ActualFilling() {
                   <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
                   <td className="px-5 py-3 text-sm font-bold text-slate-500 font-mono">{req.slipNo || '—'}</td>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-700">{req.vehicleNo}</td>
+                  <td className="px-5 py-3 text-sm text-slate-600">{req.vehicleName || '—'}</td>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-600">{req.lastKmReading} KM</td>
                   <td className="px-5 py-3 text-sm font-medium text-slate-500">{req.mileage ? `${req.mileage} KM/L` : '—'}</td>
                   <td className="px-5 py-3 text-sm text-slate-600">{req.issuedTo}</td>
                   <td className="px-5 py-3 text-sm text-slate-600">{locationText}</td>
                   <td className="px-5 py-3">
-                    <button
-                      onClick={() => handleDownloadSlip(req)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                      title="Download Slip"
-                    >
-                      <Download size={14} />
-                    </button>
+                    {req.slipCopy ? (
+                      <button
+                        onClick={() => handleDownloadSlip(req)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="Download Slip"
+                      >
+                        <Download size={14} />
+                      </button>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               );
@@ -187,7 +279,7 @@ export default function ActualFilling() {
           />
         ) : (
           <TableWrapper
-            headers={['Request No', 'Slip No', 'Vehicle', 'Expected Avg.', 'Actual Avg.', 'Qty (L)', 'Rate', 'Total', 'Current KM', 'Distance Travelled', 'Fuel Bill', 'Filling Date', 'KM Reading', 'Bill Copy']}
+            headers={['Request No', 'Slip No', 'Vehicle', 'Vehicle Name', 'Expected Avg.', 'Actual Avg.', 'Qty (L)', 'Rate', 'Total', 'Current KM', 'Distance Travelled', 'Fuel Bill', 'Filling Date', 'KM Reading', 'Bill Copy']}
             data={displayedRequests}
             loading={loading}
             emptyMessage="No completed filling records found"
@@ -199,6 +291,7 @@ export default function ActualFilling() {
                   <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
                   <td className="px-5 py-3 text-sm font-bold text-slate-500 font-mono">{req.slipNo || '—'}</td>
                   <td className="px-5 py-3 text-sm font-semibold text-slate-700">{req.vehicleNo}</td>
+                  <td className="px-5 py-3 text-sm text-slate-600">{req.vehicleName || '—'}</td>
                   <td className="px-5 py-3 text-sm font-medium text-slate-500">{req.mileage ? `${req.mileage} KM/L` : '—'}</td>
                   <td className="px-5 py-3 text-sm font-bold text-slate-900">
                     {actualAvg > 0 ? `${actualAvg.toFixed(2)} KM/L` : '—'}
@@ -253,14 +346,7 @@ export default function ActualFilling() {
         />
       )}
 
-      {/* Slip Preview Modal */}
-      {selectedSlipRequest && (
-        <SlipPreviewModal
-          isOpen={!!selectedSlipRequest}
-          onClose={() => setSelectedSlipRequest(null)}
-          request={selectedSlipRequest}
-        />
-      )}
+
 
       {/* Document Image Overlay Modal */}
       <ModalWrapper

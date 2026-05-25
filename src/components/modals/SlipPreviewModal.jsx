@@ -1,6 +1,5 @@
 import React from 'react';
 import ModalWrapper from '../ModalWrapper';
-import { downloadFuelSlip } from '../../utils/generateFuelSlip';
 import { Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import divineLogo from '../../Assets/divine-logo.svg';
@@ -10,6 +9,7 @@ export default function SlipPreviewModal({ isOpen, onClose, request }) {
 
   const handleDownload = async () => {
     try {
+      const { downloadFuelSlip } = await import('../../utils/generateFuelSlip');
       await downloadFuelSlip(request);
       toast.success('Fuel slip downloaded!');
     } catch (err) {
