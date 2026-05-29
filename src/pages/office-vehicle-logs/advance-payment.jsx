@@ -91,10 +91,13 @@ export default function OfficeAdvancePayment() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLogForAdvance, setSelectedLogForAdvance] = useState(null);
   const [advanceModes, setAdvanceModes] = useState([]);
+  const [approvedByList, setApprovedByList] = useState([]);
   
   // Modal form states
   const [modeOfAdvanceAmt, setModeOfAdvanceAmt] = useState('');
   const [advancePaid, setAdvancePaid] = useState('');
+  const [approvedBy, setApprovedBy] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [submittingAdvance, setSubmittingAdvance] = useState(false);
 
   const fetchLogs = async (showToast = false) => {
@@ -125,9 +128,22 @@ export default function OfficeAdvancePayment() {
     }
   };
 
+  const fetchApprovedByList = async () => {
+    try {
+      const list = await officeService.getApprovedByFromSheet();
+      setApprovedByList(list);
+      if (list.length > 0) {
+        setApprovedBy(list[0]);
+      }
+    } catch (e) {
+      console.error("Error loading approved by list:", e);
+    }
+  };
+
   useEffect(() => {
     fetchLogs();
     fetchAdvanceModes();
+    fetchApprovedByList();
   }, []);
 
   // Filter logs based on active tab and search query
@@ -161,12 +177,20 @@ export default function OfficeAdvancePayment() {
     if (advanceModes.length > 0) {
       setModeOfAdvanceAmt(advanceModes[0]);
     }
+    if (approvedByList.length > 0) {
+      setApprovedBy(approvedByList[0]);
+    } else {
+      setApprovedBy('');
+    }
+    setRemarks('');
   };
 
   const closeAdvanceModal = () => {
     if (submittingAdvance) return;
     setSelectedLogForAdvance(null);
     setAdvancePaid('');
+    setApprovedBy('');
+    setRemarks('');
   };
 
   const handleProcessAdvance = async (e) => {
@@ -178,17 +202,23 @@ export default function OfficeAdvancePayment() {
     if (!advancePaid || parseFloat(advancePaid) < 0) {
       return toast.error('Please enter a valid Advance Paid amount');
     }
+    if (!approvedBy) {
+      return toast.error('Please select who approved this advance');
+    }
 
     setSubmittingAdvance(true);
 
     try {
       await officeService.processAdvancePaymentToSheet(selectedLogForAdvance.rowIndex, {
         modeOfAdvanceAmt,
-        advancePaid: parseFloat(advancePaid)
+        advancePaid: parseFloat(advancePaid),
+        approvedBy,
+        remarks: remarks.trim()
       });
       
       toast.success(`Advance payment processed for ${selectedLogForAdvance.requestNo}!`);
       setSelectedLogForAdvance(null);
+      setRemarks('');
       fetchLogs();
     } catch (err) {
       console.error(err);
@@ -206,7 +236,7 @@ export default function OfficeAdvancePayment() {
     'Amount Req (₹)',
     'Mode of Advance Amt.',
     'Advance-Paid (₹)',
-    ...(activeTab === 'history' ? ['Planned1', 'Actual1', 'Delay'] : []),
+    ...(activeTab === 'history' ? ['Planned1', 'Actual1', 'Delay', 'Approved By', 'Remarks'] : []),
     'Date of Filling',
     'Last KM Reading',
     'Current KM Reading',
@@ -380,6 +410,16 @@ export default function OfficeAdvancePayment() {
                           {/* Delay */}
                           <td className="px-5 py-4 font-semibold text-rose-600 whitespace-nowrap">
                             {log.delay || '—'}
+                          </td>
+
+                          {/* Approved By */}
+                          <td className="px-5 py-4 text-slate-700 font-medium">
+                            {log.approvedBy || '—'}
+                          </td>
+
+                          {/* Remarks */}
+                          <td className="px-5 py-4 text-slate-600 max-w-[200px] truncate" title={log.remarks}>
+                            {log.remarks || '—'}
                           </td>
                         </>
                       )}
@@ -576,6 +616,36 @@ export default function OfficeAdvancePayment() {
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white font-medium text-slate-800"
                       required
                       min="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Approved By
+                    </label>
+                    <select
+                      value={approvedBy}
+                      onChange={(e) => setApprovedBy(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white font-medium text-slate-800"
+                      required
+                    >
+                      <option value="" disabled>Select Approver</option>
+                      {approvedByList.map((app, idx) => (
+                        <option key={idx} value={app}>{app}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                      Remarks
+                    </label>
+                    <input
+                      type="text"
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                      placeholder="Enter remarks (optional)"
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white font-medium text-slate-800"
                     />
                   </div>
                 </div>

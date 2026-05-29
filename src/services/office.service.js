@@ -110,6 +110,8 @@ export const officeService = {
         const fuelMachineBeforeStart = (row[21] || '').toString().trim();
         const fuelMachineAfter = (row[22] || '').toString().trim();
         const mileage = parseFloat(row[23]) || 0;
+        const approvedBy = (row[24] || '').toString().trim();
+        const remarks = (row[25] || '').toString().trim();
         const rowIndex = row[row.length - 1];
 
         return {
@@ -137,6 +139,8 @@ export const officeService = {
           fuelMachineBeforeStart,
           fuelMachineAfter,
           mileage,
+          approvedBy,
+          remarks,
           rowIndex
         };
       });
@@ -228,7 +232,9 @@ export const officeService = {
     const updatesList = [
       { rowIndex, col: 7, val: formattedTimestamp },                                // Col G (7): Actual1 (Advance paid timestamp)
       { rowIndex, col: 9, val: paymentData.modeOfAdvanceAmt || '' },                // Col I (9): Mode of Advance Amt
-      { rowIndex, col: 10, val: parseFloat(paymentData.advancePaid) || 0 }          // Col J (10): Advance-Paid
+      { rowIndex, col: 10, val: parseFloat(paymentData.advancePaid) || 0 },         // Col J (10): Advance-Paid
+      { rowIndex, col: 25, val: paymentData.approvedBy || '' },                     // Col Y (25): Approved By
+      { rowIndex, col: 26, val: paymentData.remarks || '' }                         // Col Z (26): Remarks
     ];
 
     return await updateMultipleCells('Office-Logs', updatesList);
@@ -279,6 +285,32 @@ export const officeService = {
       return Array.from(new Set(requestors));
     } catch (error) {
       console.error("Error fetching requestors from sheet:", error);
+      return [];
+    }
+  },
+
+  getApprovedByFromSheet: async () => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) return [];
+    try {
+      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Master&headerRow=1&_t=${Date.now()}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const resJson = await response.json();
+      if (!resJson.success) throw new Error(resJson.error || "Failed to fetch approvers");
+      
+      if (!resJson.data || resJson.data.length <= 1) {
+        return [];
+      }
+
+      const rows = resJson.data.slice(1);
+      // Col K is index 10 (0-based)
+      const approvers = rows
+        .map(row => (row[10] || '').toString().trim())
+        .filter(app => app !== '');
+      
+      return Array.from(new Set(approvers));
+    } catch (error) {
+      console.error("Error fetching approvers from sheet:", error);
       return [];
     }
   },

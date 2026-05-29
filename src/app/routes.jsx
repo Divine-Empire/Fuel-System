@@ -59,9 +59,7 @@ export default function AppRoutes() {
         <Route
           path="office-logs/actual-filling"
           element={
-            <AdminRoute user={user}>
-              <OfficeActualFilling />
-            </AdminRoute>
+            <OfficeActualFilling />
           }
         />
         <Route

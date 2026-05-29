@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   IndianRupee,
   FileText,
@@ -63,6 +64,7 @@ const formatLocationText = (loc, customLoc) => {
 
 export default function Dashboard() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -149,6 +151,8 @@ export default function Dashboard() {
           slipImage: req.fuelBillPhoto || '',
           slipCopy: req.fuelBillPhoto || '',
           status: req.actualDriver !== '' ? 'completed' : 'pending',
+          plannedDriver: req.plannedDriver,
+          actualDriver: req.actualDriver,
           fuelType: getFuelType(req.vehicleNo),
           rowIndex: req.rowIndex,
           mileage: req.mileage
@@ -779,7 +783,8 @@ export default function Dashboard() {
               emptyMessage="No travel or fuel requests logged"
               renderRow={(req) => {
                 const locationText = formatLocationText(req.location, req.customLocation);
-                const isProcessable = req.logType === 'employee' && !req.proofEnd;
+                const isEmployeeProcessable = req.logType === 'employee' && !req.proofEnd;
+                const isOfficeProcessable = req.logType === 'office' && req.status === 'pending' && req.plannedDriver;
                 return (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
@@ -799,7 +804,7 @@ export default function Dashboard() {
                       <StatusTag status={req.status} />
                     </td>
                     <td className="px-5 py-3">
-                      {isProcessable ? (
+                      {isEmployeeProcessable ? (
                         <button
                           onClick={() => {
                             const orig = allRequests.find(r => r.id === req.id);
@@ -807,6 +812,15 @@ export default function Dashboard() {
                             setIsEmployeeRequestModalOpen(true);
                           }}
                           className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition shadow-sm"
+                        >
+                          Process
+                        </button>
+                      ) : isOfficeProcessable ? (
+                        <button
+                          onClick={() => {
+                            navigate('/office-logs/actual-filling');
+                          }}
+                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition shadow-sm"
                         >
                           Process
                         </button>

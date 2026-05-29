@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { officeService } from '../../services/office.service';
 import { vehicleService } from '../../services/vehicle.service';
+import { useAuthStore } from '../../store/authStore';
 
 const formatSimpleDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -92,6 +93,7 @@ const fileToBase64 = (file) => {
 };
 
 export default function OfficeActualFilling() {
+  const { user } = useAuthStore();
   // Data states
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -167,8 +169,15 @@ export default function OfficeActualFilling() {
     }
   }, [lastKmReading, currentKmReading, qty]);
 
+  const userFilteredLogs = logs.filter(log => {
+    if (user?.role !== 'ADMIN') {
+      return log.requestedBy && log.requestedBy.toLowerCase() === user?.name?.toLowerCase();
+    }
+    return true;
+  });
+
   // Filter logs based on active tab and search query
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = userFilteredLogs.filter(log => {
     // Sub-stage 2 Actual Filling:
     // Pending: PlannedDriver (Col K) is not empty, ActualDriver (Col L) is empty
     // History: PlannedDriver (Col K) is not empty, ActualDriver (Col L) is not empty
@@ -365,11 +374,11 @@ export default function OfficeActualFilling() {
           >
             <Clock size={16} />
             Pending Filling
-            {logs.length > 0 && (
+            {userFilteredLogs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
               }`}>
-                {logs.filter(l => l.plannedDriver !== '' && l.actualDriver === '').length}
+                {userFilteredLogs.filter(l => l.plannedDriver !== '' && l.actualDriver === '').length}
               </span>
             )}
           </button>
@@ -383,11 +392,11 @@ export default function OfficeActualFilling() {
           >
             <CheckCircle size={16} />
             Filling History
-            {logs.length > 0 && (
+            {userFilteredLogs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'history' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
               }`}>
-                {logs.filter(l => l.plannedDriver !== '' && l.actualDriver !== '').length}
+                {userFilteredLogs.filter(l => l.plannedDriver !== '' && l.actualDriver !== '').length}
               </span>
             )}
           </button>

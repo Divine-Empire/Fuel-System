@@ -141,8 +141,8 @@ const Sidebar = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          {/* Office-Logs (Admin Only) */}
-          {user?.role === 'ADMIN' && (
+          {/* Office-Logs */}
+          {user?.role === 'ADMIN' ? (
             <div>
               <button
                 type="button"
@@ -188,6 +188,25 @@ const Sidebar = ({ isOpen, onClose }) => {
                 </div>
               )}
             </div>
+          ) : (
+            <NavLink
+              to="/office-logs/actual-filling"
+              onClick={onClose}
+              className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group
+                ${isActive
+                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+              `}
+            >
+              {({ isActive }) => (
+                <>
+                  <Fuel size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                  <span className="text-sm">Actual-Filling</span>
+                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                </>
+              )}
+            </NavLink>
           )}
 
           {/* Vehicles (Admin Only) */}
