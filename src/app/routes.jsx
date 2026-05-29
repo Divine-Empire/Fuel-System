@@ -1,11 +1,13 @@
-import React from 'react';
+
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './layout';
 import Login from '../pages/auth/Login';
 import Settings from '../pages/Settings';
 import Dashboard from '../pages/dashboard/Dashboard';
-import ActualFilling from '../pages/actual-filling/ActualFilling';
-import Payment from '../pages/payment/payment';
+import EmployeeApproval from '../pages/employee-vehicle-logs/approval';
+import EmployeePayment from '../pages/employee-vehicle-logs/payment';
+import OfficeAdvancePayment from '../pages/office-vehicle-logs/advance-payment';
+import OfficeActualFilling from '../pages/office-vehicle-logs/actual-filling';
 import Master from '../pages/vehicle-master/vehicle-master';
 import Profile from '../pages/profile/profile';
 import { useAuthStore } from '../store/authStore';
@@ -31,20 +33,40 @@ export default function AppRoutes() {
         
         {/* Protected Admin Routes */}
         <Route
-          path="actual-filling"
+          path="employee-logs/approval"
           element={
             <AdminRoute user={user}>
-              <ActualFilling />
+              <EmployeeApproval />
             </AdminRoute>
           }
         />
         <Route
-          path="payment"
+          path="employee-logs/payment"
           element={
             <AdminRoute user={user}>
-              <Payment />
+              <EmployeePayment />
             </AdminRoute>
           }
+        />
+        <Route
+          path="office-logs/advance-payment"
+          element={
+            <AdminRoute user={user}>
+              <OfficeAdvancePayment />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="office-logs/actual-filling"
+          element={
+            <AdminRoute user={user}>
+              <OfficeActualFilling />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="office-logs"
+          element={<Navigate to="/office-logs/advance-payment" replace />}
         />
         <Route
           path="master"
@@ -68,3 +90,5 @@ export default function AppRoutes() {
     </Routes>
   );
 }
+
+

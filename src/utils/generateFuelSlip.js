@@ -28,7 +28,7 @@ function formatDateTime(dateStr, createdAtStr) {
     const timeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
     
     return `${day}-${month}-${year} ${timeStr}`;
-  } catch (e) {
+  } catch {
     return dateStr || '—';
   }
 }

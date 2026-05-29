@@ -1,4 +1,4 @@
-import React from 'react';
+
 import statusColor from '../utils/statusColor';
 
 export default function StatusTag({ status }) {

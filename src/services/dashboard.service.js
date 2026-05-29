@@ -16,7 +16,10 @@ export const dashboardService = {
         rawRequests
           .map((r) => {
             if (!r.location) return null;
-            return r.location === 'Others' ? (r.customLocation || 'Others') : `Location ${r.location}`;
+            if (r.location === 'Others') return r.customLocation || 'Others';
+            if (r.location === 'Office' || r.location === 'Employee Travel') return r.location;
+            if (/^\d+$/.test(r.location)) return `Location ${r.location}`;
+            return r.location;
           })
           .filter(Boolean)
       )
@@ -29,6 +32,7 @@ export const dashboardService = {
       const start = new Date(dateRange.start);
       const end = new Date(dateRange.end);
       requests = requests.filter((req) => {
+        if (!req.requestDate) return false;
         const date = new Date(req.requestDate);
         return date >= start && date <= end;
       });
@@ -43,7 +47,7 @@ export const dashboardService = {
     const uniqueVehicles = new Set();
 
     requests.forEach((req) => {
-      if (req.vehicleNo) {
+      if (req.vehicleNo && req.vehicleNo !== 'Personal') {
         uniqueVehicles.add(req.vehicleNo);
       }
       if (req.status === 'pending') {
@@ -51,7 +55,9 @@ export const dashboardService = {
       } else if (req.status === 'completed') {
         completedFilling++;
         totalFuelExpense += req.totalAmount || 0;
-        totalLitresFilled += req.qty || 0;
+        if (req.logType !== 'employee' && req.vehicleNo !== 'Personal') {
+          totalLitresFilled += req.qty || 0;
+        }
       }
     });
 

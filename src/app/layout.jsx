@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { LayoutGrid, User as UserIcon } from 'lucide-react';
 import Sidebar from '../components/Sidebar';

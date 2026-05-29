@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 
 const ThemeContext = createContext();

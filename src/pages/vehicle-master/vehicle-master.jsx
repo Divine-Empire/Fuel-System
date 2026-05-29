@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Search, Plus, Trash2, Eye, FileText, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2 } from 'lucide-react';
 import TableWrapper from '../../components/TableWrapper';
 import ModalWrapper from '../../components/ModalWrapper';
 import AddVehicleModal from '../../components/modals/AddVehicleModal';
+import EditVehicleModal from '../../components/modals/EditVehicleModal';
 import { vehicleService } from '../../services/vehicle.service';
+import { useAuthStore } from '../../store/authStore';
 
 export default function Master() {
   const [vehicles, setVehicles] = useState([]);
@@ -13,8 +15,12 @@ export default function Master() {
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editVehicle, setEditVehicle] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null); // { docType, docImage }
   const [activeDocsVehicle, setActiveDocsVehicle] = useState(null);
+
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
 
   const loadVehicles = async () => {
     setLoading(true);
@@ -33,16 +39,20 @@ export default function Master() {
     loadVehicles();
   }, []);
 
-  const handleDelete = (id, vehicleNo) => {
-    if (window.confirm(`Are you sure you want to delete vehicle ${vehicleNo}?`)) {
-      try {
-        vehicleService.deleteVehicle(id, vehicleNo);
-        toast.success(`Vehicle ${vehicleNo} deleted successfully`);
-        loadVehicles();
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to delete vehicle');
-      }
+  const handleDeleteVehicle = async (vehicle) => {
+    if (!window.confirm(`Are you sure you want to delete vehicle ${vehicle.vehicleNo}?`)) {
+      return;
+    }
+    const loadingToast = toast.loading('Deleting vehicle...');
+    try {
+      await vehicleService.deleteVehicleFromSheet(vehicle.vehicleNo);
+      toast.dismiss(loadingToast);
+      toast.success(`Vehicle ${vehicle.vehicleNo} deleted successfully`);
+      loadVehicles();
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      console.error(err);
+      toast.error(err.message || 'Failed to delete vehicle');
     }
   };
 
@@ -52,7 +62,6 @@ export default function Master() {
     const query = searchQuery.toLowerCase();
     return (
       v.vehicleNo.toLowerCase().includes(query) ||
-      (v.driverName && v.driverName.toLowerCase().includes(query)) ||
       v.fuelType.toLowerCase().includes(query)
     );
   });
@@ -67,7 +76,7 @@ export default function Master() {
           <Search size={14} className="absolute left-3 top-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by Vehicle No, Driver, or Fuel Type..."
+            placeholder="Search by Vehicle No or Fuel Type..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={inputCls}
@@ -85,15 +94,17 @@ export default function Master() {
       {/* Vehicles Table */}
       <div className="flex-1 min-h-0 flex flex-col">
         <TableWrapper
-          headers={['Vehicle No', 'Vehicle Name', "Driver's Name", 'Fuel Type', 'Mileage', 'Last KM Reading', 'Documents']}
+          headers={
+            isAdmin
+              ? ['Vehicle No', 'Fuel Type', 'Mileage', 'Last KM Reading', 'Documents', 'Actions']
+              : ['Vehicle No', 'Fuel Type', 'Mileage', 'Last KM Reading', 'Documents']
+          }
           data={displayedVehicles}
           loading={loading}
           emptyMessage="No registered vehicles found"
           renderRow={(v) => (
             <tr key={v.id} className="hover:bg-slate-50 transition-colors">
               <td className="px-5 py-4 text-sm font-bold text-slate-900 font-mono">{v.vehicleNo}</td>
-              <td className="px-5 py-4 text-sm text-slate-600 font-semibold">{v.vehicleName || '—'}</td>
-              <td className="px-5 py-4 text-sm text-slate-600 font-semibold">{v.driverName || '—'}</td>
               <td className="px-5 py-4 text-xs font-semibold text-slate-500">
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
                   v.fuelType === 'Diesel' 
@@ -120,6 +131,26 @@ export default function Master() {
                   <span className="text-xs text-slate-400 italic">No docs attached</span>
                 )}
               </td>
+              {isAdmin && (
+                <td className="px-5 py-4">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditVehicle(v)}
+                      className="p-1.5 hover:bg-indigo-50 text-indigo-600 hover:text-indigo-850 rounded transition-colors"
+                      title="Edit/Re-upload Docs"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVehicle(v)}
+                      className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-800 rounded transition-colors"
+                      title="Delete Vehicle"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
+              )}
             </tr>
           )}
         />
@@ -130,6 +161,16 @@ export default function Master() {
         <AddVehicleModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
+          onSuccess={loadVehicles}
+        />
+      )}
+
+      {/* Edit Vehicle Modal */}
+      {editVehicle && (
+        <EditVehicleModal
+          isOpen={!!editVehicle}
+          vehicle={editVehicle}
+          onClose={() => setEditVehicle(null)}
           onSuccess={loadVehicles}
         />
       )}

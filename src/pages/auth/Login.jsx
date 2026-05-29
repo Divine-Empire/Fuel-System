@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import { getUsers } from '../../utils/storageManager';
+import { userService } from '../../services/user.service';
 import divineLogo from '../../Assets/divine-logo.svg';
 
 const Login = () => {
@@ -19,9 +20,19 @@ const Login = () => {
     setSubmitting(true);
 
     try {
-      const users = getUsers();
+      let users = [];
+      try {
+        users = await userService.getUsersFromSheet();
+      } catch (err) {
+        console.error("Error fetching users from sheet, falling back to local:", err);
+      }
+
+      if (!users || users.length === 0) {
+        users = getUsers();
+      }
+
       const matchedUser = users.find(
-        (u) => u.id === id && u.password === password
+        (u) => u.id.toLowerCase() === id.trim().toLowerCase() && u.password === password
       );
 
       if (!matchedUser) {

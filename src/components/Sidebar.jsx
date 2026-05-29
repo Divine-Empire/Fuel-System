@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   Settings,
@@ -6,9 +7,10 @@ import {
   LayoutGrid,
   FileText,
   Fuel,
-  Wallet,
   Car,
-  User as UserIcon
+  User as UserIcon,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import divineLogo from '../Assets/divine-logo.svg';
@@ -18,44 +20,28 @@ const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
-  const getStageName = () => {
-    switch (location.pathname) {
-      case '/dashboard':
-        return 'Dashboard';
-      case '/actual-filling':
-        return 'Actual Filling';
-      case '/payment':
-        return 'Payments';
-      case '/master':
-        return 'Vehicle Master';
-      case '/profile':
-        return 'Profile';
-      case '/settings':
-        return 'Settings';
-      default:
-        return 'Fuel System';
+  const isEmpLogsActive = location.pathname.startsWith('/employee-logs');
+  const isOfficeLogsActive = location.pathname.startsWith('/office-logs');
+  const [empLogsOpen, setEmpLogsOpen] = useState(isEmpLogsActive);
+  const [officeLogsOpen, setOfficeLogsOpen] = useState(isOfficeLogsActive);
+
+  useEffect(() => {
+    if (isEmpLogsActive) {
+      setEmpLogsOpen(true);
     }
-  };
+  }, [isEmpLogsActive]);
+
+  useEffect(() => {
+    if (isOfficeLogsActive) {
+      setOfficeLogsOpen(true);
+    }
+  }, [isOfficeLogsActive]);
+
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
-
-  const adminMenuItems = [
-    { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/actual-filling',  icon: Fuel,         label: 'Actual Filling' },
-    { path: '/payment',         icon: Wallet,       label: 'Payments' },
-    { path: '/master',          icon: Car,          label: 'Vehicle Master' },
-    { path: '/settings',        icon: Settings,     label: 'Settings' },
-  ];
-
-  const employeeMenuItems = [
-    { path: '/dashboard',       icon: LayoutGrid,   label: 'Dashboard' },
-    { path: '/profile',         icon: UserIcon,     label: 'Profile' },
-  ];
-
-  const menuItems = user?.role === 'ADMIN' ? adminMenuItems : employeeMenuItems;
 
   return (
     <>
@@ -85,10 +71,129 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 scrollbar-hide">
           <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Main Menu</p>
-          {menuItems.map((item) => (
+          
+          {/* Dashboard */}
+          <NavLink
+            to="/dashboard"
+            onClick={onClose}
+            className={({ isActive }) => `
+              flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group
+              ${isActive
+                ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+            `}
+          >
+            {({ isActive }) => (
+              <>
+                <LayoutGrid size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                <span className="text-sm">Dashboard</span>
+                {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+              </>
+            )}
+          </NavLink>
+
+          {/* Employee-Logs (Admin Only) */}
+          {user?.role === 'ADMIN' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setEmpLogsOpen(!empLogsOpen)}
+                className={`
+                  flex items-center w-full gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium
+                  ${isEmpLogsActive ? 'text-indigo-700 font-semibold bg-indigo-50/40' : ''}
+                `}
+              >
+                <FileText size={17} className={isEmpLogsActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                <span className="text-sm">Employee-Logs</span>
+                <span className="ml-auto">
+                  {empLogsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </span>
+              </button>
+              
+              {empLogsOpen && (
+                <div className="pl-4 mt-1 space-y-0.5 border-l border-slate-100 ml-5">
+                  <NavLink
+                    to="/employee-logs/approval"
+                    onClick={onClose}
+                    className={({ isActive }) => `
+                      flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150
+                      ${isActive
+                        ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+                    `}
+                  >
+                    <span className="text-sm">Approval</span>
+                  </NavLink>
+                  <NavLink
+                    to="/employee-logs/payment"
+                    onClick={onClose}
+                    className={({ isActive }) => `
+                      flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150
+                      ${isActive
+                        ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+                    `}
+                  >
+                    <span className="text-sm">Payment</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Office-Logs (Admin Only) */}
+          {user?.role === 'ADMIN' && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setOfficeLogsOpen(!officeLogsOpen)}
+                className={`
+                  flex items-center w-full gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium
+                  ${isOfficeLogsActive ? 'text-indigo-700 font-semibold bg-indigo-50/40' : ''}
+                `}
+              >
+                <Fuel size={17} className={isOfficeLogsActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                <span className="text-sm">Office-Logs</span>
+                <span className="ml-auto">
+                  {officeLogsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </span>
+              </button>
+              
+              {officeLogsOpen && (
+                <div className="pl-4 mt-1 space-y-0.5 border-l border-slate-100 ml-5">
+                  <NavLink
+                    to="/office-logs/advance-payment"
+                    onClick={onClose}
+                    className={({ isActive }) => `
+                      flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150
+                      ${isActive
+                        ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+                    `}
+                  >
+                    <span className="text-sm">Advance</span>
+                  </NavLink>
+                  <NavLink
+                    to="/office-logs/actual-filling"
+                    onClick={onClose}
+                    className={({ isActive }) => `
+                      flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150
+                      ${isActive
+                        ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+                    `}
+                  >
+                    <span className="text-sm">Actual-Filling</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Vehicles (Admin Only) */}
+          {user?.role === 'ADMIN' && (
             <NavLink
-              key={item.path}
-              to={item.path}
+              to="/master"
               onClick={onClose}
               className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group
@@ -99,13 +204,57 @@ const Sidebar = ({ isOpen, onClose }) => {
             >
               {({ isActive }) => (
                 <>
-                  <item.icon size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
-                  <span className="text-sm">{item.label}</span>
+                  <Car size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                  <span className="text-sm">Vehicles</span>
                   {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
                 </>
               )}
             </NavLink>
-          ))}
+          )}
+
+          {/* Settings (Admin Only) */}
+          {user?.role === 'ADMIN' && (
+            <NavLink
+              to="/settings"
+              onClick={onClose}
+              className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group
+                ${isActive
+                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+              `}
+            >
+              {({ isActive }) => (
+                <>
+                  <Settings size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                  <span className="text-sm">Settings</span>
+                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                </>
+              )}
+            </NavLink>
+          )}
+
+          {/* Profile (Employee/User Only) */}
+          {user?.role !== 'ADMIN' && (
+            <NavLink
+              to="/profile"
+              onClick={onClose}
+              className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group
+                ${isActive
+                  ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
+              `}
+            >
+              {({ isActive }) => (
+                <>
+                  <UserIcon size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                  <span className="text-sm">Profile</span>
+                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                </>
+              )}
+            </NavLink>
+          )}
         </nav>
 
         {/* User Section */}

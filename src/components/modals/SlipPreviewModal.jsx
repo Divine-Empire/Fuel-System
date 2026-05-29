@@ -1,4 +1,4 @@
-import React from 'react';
+
 import ModalWrapper from '../ModalWrapper';
 import { Download } from 'lucide-react';
 import toast from 'react-hot-toast';

@@ -14,7 +14,7 @@ export const vehicleService = {
         if (cleaned.length !== parsed.length) {
           localStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(cleaned));
         }
-      } catch (e) {
+      } catch {
         localStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(DEFAULT_VEHICLES));
       }
     } else {
@@ -48,7 +48,6 @@ export const vehicleService = {
       mileage: parseFloat(vehicleData.mileage) || 0,
       lastKmReading: parseFloat(vehicleData.lastKmReading) || 0,
       fuelType: vehicleData.fuelType || 'Diesel',
-      driverName: vehicleData.driverName?.trim() || '',
       documents: vehicleData.documents || [],
       createdAt: new Date().toISOString()
     };
@@ -100,36 +99,32 @@ export const vehicleService = {
     let sheetVehicles = [];
     if (APPS_SCRIPT_URL) {
       try {
-        const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Vehicles&headerRow=1`);
+        const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Vehicles&headerRow=1&_t=${Date.now()}`);
         if (response.ok) {
           const resJson = await response.json();
           if (resJson.success) {
             const rows = resJson.data.slice(1);
             sheetVehicles = rows.map(row => {
-              const vehicleNo = (row[2] || '').toString().trim().toUpperCase();
-              const vehicleName = (row[1] || '').toString().trim();
-              const driverName = (row[3] || '').toString().trim();
-              const fuelType = (row[4] || 'Diesel').toString().trim();
-              const rawMileage = row[5];
+              const vehicleNo = (row[1] || '').toString().trim().toUpperCase();
+              const fuelType = (row[2] || 'Diesel').toString().trim();
+              const rawMileage = row[3];
               const mileage = (rawMileage !== null && rawMileage !== undefined && rawMileage !== '') ? rawMileage.toString().trim() : '—';
-              const lastKmReading = parseFloat(row[6]) || 0;
+              const lastKmReading = parseFloat(row[4]) || 0;
               
               const documents = [];
+              if (row[5] && row[6]) {
+                documents.push({ id: `doc_${vehicleNo}_1`, docType: row[5].toString().trim(), docImage: row[6].toString().trim() });
+              }
               if (row[7] && row[8]) {
-                documents.push({ id: `doc_${vehicleNo}_1`, docType: row[7].toString().trim(), docImage: row[8].toString().trim() });
+                documents.push({ id: `doc_${vehicleNo}_2`, docType: row[7].toString().trim(), docImage: row[8].toString().trim() });
               }
               if (row[9] && row[10]) {
-                documents.push({ id: `doc_${vehicleNo}_2`, docType: row[9].toString().trim(), docImage: row[10].toString().trim() });
-              }
-              if (row[11] && row[12]) {
-                documents.push({ id: `doc_${vehicleNo}_3`, docType: row[11].toString().trim(), docImage: row[12].toString().trim() });
+                documents.push({ id: `doc_${vehicleNo}_3`, docType: row[9].toString().trim(), docImage: row[10].toString().trim() });
               }
 
               return {
                 id: `veh_sheet_${vehicleNo}`,
                 vehicleNo,
-                vehicleName,
-                driverName,
                 fuelType,
                 mileage,
                 lastKmReading,
@@ -177,21 +172,19 @@ export const vehicleService = {
       String(now.getMinutes()).padStart(2, '0') + ':' +
       String(now.getSeconds()).padStart(2, '0');
 
-    // Build rowData array
+    // Build rowData array (11 columns)
     const rowData = [
       formattedTimestamp,                        // Col A (0): Timestamp
-      vehicleData.vehicleName || '',             // Col B (1): Vehicle-Name
-      vehicleData.vehicleNo.trim().toUpperCase(),// Col C (2): Vehicle No
-      vehicleData.driverName || '',              // Col D (3): Driver's Name
-      vehicleData.fuelType || 'Diesel',          // Col E (4): Fuel Type
-      vehicleData.mileage || 0,                  // Col F (5): Mileage
-      vehicleData.lastKmReading || 0,             // Col G (6): Last KM Reading
-      '',                                        // Col H (7): Doc-Name1
-      '',                                        // Col I (8): Img1
-      '',                                        // Col J (9): Doc-Name2
-      '',                                        // Col K (10): Img2
-      '',                                        // Col L (11): Doc-Name3
-      ''                                         // Col M (12): Img3
+      vehicleData.vehicleNo.trim().toUpperCase(),// Col B (1): Vehicle No
+      vehicleData.fuelType || 'Diesel',          // Col C (2): Fuel Type
+      vehicleData.mileage || 0,                  // Col D (3): Mileage
+      vehicleData.lastKmReading || 0,             // Col E (4): Last KM Reading
+      '',                                        // Col F (5): Doc-Name1
+      '',                                        // Col G (6): Img1
+      '',                                        // Col H (7): Doc-Name2
+      '',                                        // Col I (8): Img2
+      '',                                        // Col J (9): Doc-Name3
+      ''                                         // Col K (10): Img3
     ];
 
     // Upload documents (up to 3) to Google Drive and store URLs in rowData
@@ -201,8 +194,8 @@ export const vehicleService = {
       if (doc && doc.docType && doc.docImage) {
         // Upload image to drive
         const driveUrl = await fuelService.uploadFileToDrive(doc.docImage, `${vehicleData.vehicleNo}_${doc.docType}`);
-        rowData[7 + i * 2] = doc.docType;
-        rowData[8 + i * 2] = driveUrl;
+        rowData[5 + i * 2] = doc.docType;
+        rowData[6 + i * 2] = driveUrl;
       }
     }
 
@@ -229,6 +222,106 @@ export const vehicleService = {
       throw new Error(resJson.error || 'Failed to submit vehicle data');
     }
 
+    return resJson;
+  },
+
+  updateVehicleInSheet: async (vehicleData) => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) {
+      throw new Error("Apps Script URL is missing in environment variables");
+    }
+
+    const vehicleNo = vehicleData.vehicleNo.trim().toUpperCase();
+
+    // Prepare documents
+    const docs = vehicleData.documents || [];
+    const finalDocs = [];
+    for (let i = 0; i < 3; i++) {
+      const doc = docs[i];
+      if (doc && doc.docType && doc.docImage) {
+        let driveUrl = doc.docImage;
+        // If it's a new upload (base64 data), upload it to drive first
+        if (doc.docImage.startsWith('data:')) {
+          driveUrl = await fuelService.uploadFileToDrive(doc.docImage, `${vehicleNo}_${doc.docType}`);
+        }
+        finalDocs.push({ docType: doc.docType, docImage: driveUrl });
+      } else {
+        finalDocs.push({ docType: ' ', docImage: ' ' }); // Use a space to overwrite old values
+      }
+    }
+
+    // Build rowData array (11 columns)
+    const rowData = [
+      '',                                        // Col A (0): Keep existing Timestamp
+      vehicleNo,                                 // Col B (1): Vehicle No
+      vehicleData.fuelType || 'Diesel',          // Col C (2): Fuel Type
+      vehicleData.mileage || 0,                  // Col D (3): Mileage
+      vehicleData.lastKmReading || 0,             // Col E (4): Last KM Reading
+      finalDocs[0].docType,                      // Col F (5): Doc-Name1
+      finalDocs[0].docImage,                     // Col G (6): Img1
+      finalDocs[1].docType,                      // Col H (7): Doc-Name2
+      finalDocs[1].docImage,                     // Col I (8): Img2
+      finalDocs[2].docType,                      // Col J (9): Doc-Name3
+      finalDocs[2].docImage                      // Col K (10): Img3
+    ];
+
+    const bodyParams = new URLSearchParams({
+      action: 'update',
+      sheetName: 'Vehicles',
+      idValue: vehicleNo,
+      idColumnIndex: '1', // Column B is Vehicle No
+      rowData: JSON.stringify(rowData)
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const resJson = await response.json();
+    if (!resJson.success) {
+      throw new Error(resJson.error || 'Failed to update vehicle data');
+    }
+
+    return resJson;
+  },
+
+  deleteVehicleFromSheet: async (vehicleNo) => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) {
+      throw new Error("Apps Script URL is missing in environment variables");
+    }
+
+    const bodyParams = new URLSearchParams({
+      action: 'delete',
+      sheetName: 'Vehicles',
+      idValue: vehicleNo.trim().toUpperCase(),
+      idColumnIndex: '1' // Column B is Vehicle No
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const resJson = await response.json();
+    if (!resJson.success) {
+      throw new Error(resJson.error || 'Failed to delete vehicle');
+    }
     return resJson;
   }
 };

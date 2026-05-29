@@ -1,5 +1,4 @@
-import React from 'react';
-import { Bell, User, Menu, LogOut } from 'lucide-react';
+import { Bell, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
@@ -8,24 +7,56 @@ const Header = ({ onMenuClick, user }) => {
   const location = useLocation();
   const { logout } = useAuthStore();
 
-  const getStageName = () => {
+  const getStageHeader = () => {
     switch (location.pathname) {
       case '/dashboard':
-        return 'Dashboard Overview';
+        return {
+          title: 'Dashboard Overview',
+        };
       case '/request-filling':
-        return 'Request Filling';
+        return {
+          title: 'Request Filling',
+        };
       case '/actual-filling':
-        return 'Actual Filling';
+        return {
+          title: 'Actual Filling',
+        };
       case '/payment':
-        return 'Payments';
+        return {
+          title: 'Payments',
+        };
+      case '/employee-logs/approval':
+        return {
+          title: 'Employee Travel Logs',
+        };
+      case '/employee-logs/payment':
+        return {
+          title: 'Employee Travel Payments',
+        };
+      case '/office-logs/advance-payment':
+        return {
+          title: 'Office Logs - Advance Payment',
+        };
+      case '/office-logs/actual-filling':
+        return {
+          title: 'Office Logs - Actual Fuel Filling',
+        };
       case '/master':
-        return 'Vehicle Master';
+        return {
+          title: 'Vehicle Master',
+        };
       case '/profile':
-        return 'Profile';
+        return {
+          title: 'My Profile',
+        };
       case '/settings':
-        return 'Settings';
+        return {
+          title: 'Settings',
+        };
       default:
-        return 'Fuel System';
+        return {
+          title: 'Fuel System',
+        };
     }
   };
 
@@ -36,7 +67,7 @@ const Header = ({ onMenuClick, user }) => {
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
-      <div className="flex justify-between items-center h-14 px-4 sm:px-6">
+      <div className="flex justify-between items-center py-2.5 px-4 sm:px-6 min-h-[3.5rem]">
 
         {/* Left: Mobile hamburger */}
         <div className="flex items-center gap-3">
@@ -47,7 +78,9 @@ const Header = ({ onMenuClick, user }) => {
             <Menu size={20} />
           </button>
           <div className="block">
-            <p className="text-xl font-bold text-slate-800 tracking-tight">{getStageName()}</p>
+            <h1 className="text-base sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">
+              {getStageHeader().title}
+            </h1>
           </div>
         </div>
 

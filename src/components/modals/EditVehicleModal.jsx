@@ -4,12 +4,14 @@ import ModalWrapper from '../ModalWrapper';
 import { vehicleService } from '../../services/vehicle.service';
 import { Upload, Plus, Trash2, Camera } from 'lucide-react';
 
-export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
-  const [vehicleNo, setVehicleNo] = useState('');
-  const [mileage, setMileage] = useState('');
-  const [lastKmReading, setLastKmReading] = useState('');
-  const [fuelType, setFuelType] = useState('Diesel');
-  const [documents, setDocuments] = useState([]);
+export default function EditVehicleModal({ isOpen, onClose, onSuccess, vehicle }) {
+  const [vehicleNo] = useState(vehicle?.vehicleNo || '');
+  const [mileage, setMileage] = useState(
+    vehicle?.mileage && vehicle?.mileage !== '—' && vehicle?.mileage !== 'NA' ? vehicle.mileage : ''
+  );
+  const [lastKmReading, setLastKmReading] = useState(vehicle?.lastKmReading || '');
+  const [fuelType, setFuelType] = useState(vehicle?.fuelType || 'Diesel');
+  const [documents, setDocuments] = useState(vehicle?.documents || []);
 
   // Temp state for document attachment in progress
   const [tempDocType, setTempDocType] = useState('');
@@ -60,7 +62,6 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!vehicleNo.trim()) return toast.error('Vehicle No is required');
     if (!mileage || parseFloat(mileage) <= 0) return toast.error('Please enter a valid mileage');
     if (!lastKmReading || parseFloat(lastKmReading) < 0) {
       return toast.error('Please enter a valid Last KM Reading');
@@ -78,30 +79,20 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
 
     setSubmitting(true);
     try {
-      await vehicleService.createVehicleToSheet({
-        vehicleNo: vehicleNo.trim().toUpperCase(),
+      await vehicleService.updateVehicleInSheet({
+        vehicleNo,
         mileage: parseFloat(mileage),
         lastKmReading: parseFloat(lastKmReading),
         fuelType,
         documents: finalDocs
       });
 
-      toast.success(`Vehicle ${vehicleNo.toUpperCase()} registered successfully!`);
-      
-      // Reset state
-      setVehicleNo('');
-      setMileage('');
-      setLastKmReading('');
-      setFuelType('Diesel');
-      setDocuments([]);
-      setTempDocImage('');
-      setTempDocType('');
-
+      toast.success(`Vehicle ${vehicleNo} updated successfully!`);
       onSuccess();
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error(err.message || 'Failed to register vehicle');
+      toast.error(err.message || 'Failed to update vehicle');
     } finally {
       setSubmitting(false);
     }
@@ -113,27 +104,24 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
   const fileLabelCls = "flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer text-slate-500 hover:text-slate-700 relative overflow-hidden group min-h-[90px] w-full";
 
   return (
-    <ModalWrapper isOpen={isOpen} onClose={onClose} title="Register New Vehicle" maxWidth="max-w-lg">
+    <ModalWrapper isOpen={isOpen} onClose={onClose} title="Edit Vehicle Details" maxWidth="max-w-lg">
       <div className="relative">
         {submitting && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center min-h-[300px] rounded-xl">
             <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-4 text-xs font-bold text-slate-700 uppercase tracking-wider">Uploading Documents & Registering Vehicle...</p>
+            <p className="mt-4 text-xs font-bold text-slate-700 uppercase tracking-wider">Saving Changes...</p>
           </div>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>Vehicle No</label>
+              <label className={labelCls}>Vehicle No (Read Only)</label>
               <input
                 type="text"
                 value={vehicleNo}
-                onChange={(e) => setVehicleNo(e.target.value)}
-                placeholder="e.g. CG04AB1234"
-                className={inputCls}
-                required
-                disabled={submitting}
+                className="block w-full text-xs bg-slate-100 border border-slate-200 rounded-lg p-2.5 text-slate-500 font-bold font-mono focus:outline-none"
+                disabled
               />
             </div>
 
@@ -268,7 +256,7 @@ export default function AddVehicleModal({ isOpen, onClose, onSuccess }) {
               className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition shadow-sm"
               disabled={submitting}
             >
-              {submitting ? 'Registering Vehicle...' : 'Register Vehicle'}
+              {submitting ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"

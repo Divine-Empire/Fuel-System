@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { X } from 'lucide-react';
 
 export default function ModalWrapper({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' }) {

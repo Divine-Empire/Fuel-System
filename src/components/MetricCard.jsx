@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 export default function MetricCard({ title, value, icon: Icon, description, trend, trendType, gradient }) {
   return (

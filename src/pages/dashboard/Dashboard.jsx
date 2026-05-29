@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import {
   IndianRupee,
   FileText,
   CheckCircle2,
-  Calendar,
   RefreshCw,
   Car,
   Fuel,
@@ -11,20 +10,56 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  Download,
   Plus
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import TableWrapper from '../../components/TableWrapper';
 import StatusTag from '../../components/StatusTag';
 import SlipPreviewModal from '../../components/modals/SlipPreviewModal';
-import RequestFuelModal from '../../components/modals/RequestFuelModal';
+import EmployeeRequestModal from '../employee-vehicle-logs/request-form';
+import OfficeRequestModal from '../office-vehicle-logs/request-form';
 import { dashboardService } from '../../services/dashboard.service';
 import { vehicleService } from '../../services/vehicle.service';
-import { fuelService } from '../../services/fuel.service';
+import { employeeService } from '../../services/employee.service';
+import { officeService } from '../../services/office.service';
 import formatCurrency from '../../utils/formatCurrency';
 import formatDate from '../../utils/formatDate';
 import { useAuthStore } from '../../store/authStore';
+import toast from 'react-hot-toast';
+
+const parseDateToISO = (dateStr) => {
+  if (!dateStr) return '';
+  const cleanStr = dateStr.toString().trim();
+  if (!cleanStr) return '';
+
+  const matchIso = cleanStr.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})/);
+  if (matchIso) {
+    return `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
+  }
+
+  const matchDmy = cleanStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (matchDmy) {
+    return `${matchDmy[3]}-${matchDmy[2].padStart(2, '0')}-${matchDmy[1].padStart(2, '0')}`;
+  }
+
+  const d = new Date(cleanStr);
+  if (!isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return cleanStr;
+};
+
+const formatLocationText = (loc, customLoc) => {
+  if (!loc) return '—';
+  if (loc === 'Others') return customLoc || 'Others';
+  if (loc === 'Office' || loc === 'Employee Travel') return loc;
+  if (/^\d+$/.test(loc)) return `Location ${loc}`;
+  return loc;
+};
 
 export default function Dashboard() {
   const { user } = useAuthStore();
@@ -39,17 +74,91 @@ export default function Dashboard() {
   const [masterVehicles, setMasterVehicles] = useState([]);
   const [expandedVehicles, setExpandedVehicles] = useState({});
   const [selectedSlipRequest, setSelectedSlipRequest] = useState(null);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [selectedEditRecord, setSelectedEditRecord] = useState(null);
+  
+  // Modal states
+  const [isEmployeeRequestModalOpen, setIsEmployeeRequestModalOpen] = useState(false);
+  const [isOfficeRequestModalOpen, setIsOfficeRequestModalOpen] = useState(false);
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const rawRequests = await fuelService.getFuelRequestsFromSheet();
-      setAllRequests(rawRequests);
-      const list = await vehicleService.getVehiclesFromSheet();
-      setMasterVehicles(list);
+      const [empLogs, officeLogs, vehiclesList] = await Promise.all([
+        employeeService.getEmployeeRequestsFromSheet(),
+        officeService.getOfficeRequestsFromSheet(),
+        vehicleService.getVehiclesFromSheet()
+      ]);
+
+      setMasterVehicles(vehiclesList);
+
+      const getFuelType = (vNo) => {
+        const matched = vehiclesList.find(
+          (v) => v.vehicleNo.toLowerCase() === vNo.toLowerCase()
+        );
+        return matched?.fuelType || 'Diesel';
+      };
+
+      // Unified mapping
+      const mappedEmp = empLogs.map(req => {
+        const isoDate = parseDateToISO(req.dateOfVisit || req.timestamp);
+        return {
+          id: req.id || `emp_${req.rowIndex || Date.now()}`,
+          logType: 'employee',
+          requestNo: req.requestNo,
+          requestDate: isoDate,
+          fillingDate: isoDate,
+          vehicleNo: 'Personal',
+          issuedTo: req.employeeName,
+          lastKmReading: req.kmReadingStart,
+          currentKmReading: req.kmReadingEnd,
+          qty: req.distanceCovered, // Distance in KM
+          rate: req.rate,
+          totalAmount: req.actualPaid || req.calculatedPrice,
+          location: req.siteLocation || 'Employee Travel',
+          customLocation: req.siteLocation || '',
+          slipNo: req.requestNo,
+          slipImage: req.proofEnd || req.proofStart || '',
+          slipCopy: req.proofEnd || req.proofStart || '',
+          status: req.actual2 !== '' ? 'completed' : 'pending',
+          fuelType: 'Personal',
+          rowIndex: req.rowIndex,
+          proofStart: req.proofStart,
+          proofEnd: req.proofEnd
+        };
+      });
+
+      const mappedOffice = officeLogs.map(req => {
+        const isoDate = parseDateToISO(req.dateOfFilling || req.timestamp);
+        return {
+          id: `office_${req.rowIndex || Date.now()}_${req.requestNo}`,
+          logType: 'office',
+          requestNo: req.requestNo,
+          requestDate: parseDateToISO(req.timestamp),
+          fillingDate: isoDate,
+          vehicleNo: req.vehicleNo,
+          issuedTo: req.requestedBy,
+          lastKmReading: req.lastKmReading,
+          currentKmReading: req.currentKmReading,
+          qty: req.qty, // Litres
+          rate: req.rate,
+          totalAmount: req.calculatedPrice,
+          location: 'Office',
+          customLocation: 'Office',
+          slipNo: req.requestNo,
+          slipImage: req.fuelBillPhoto || '',
+          slipCopy: req.fuelBillPhoto || '',
+          status: req.actualDriver !== '' ? 'completed' : 'pending',
+          fuelType: getFuelType(req.vehicleNo),
+          rowIndex: req.rowIndex,
+          mileage: req.mileage
+        };
+      });
+
+      setAllRequests([...mappedEmp, ...mappedOffice]);
     } catch (err) {
       console.error(err);
+      toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
@@ -79,7 +188,7 @@ export default function Dashboard() {
     }));
   };
 
-  const { metrics, requests = [], filterOptions = {} } = data || {};
+  const { requests = [], filterOptions = {} } = data || {};
 
   // Check if any admin filter is active
   const isFilterActive = useMemo(() => {
@@ -112,38 +221,41 @@ export default function Dashboard() {
 
       if (recIsCompleted(req)) {
         groups[vNo].fillingsCount += 1;
-        groups[vNo].totalQty += req.qty || 0;
-        groups[vNo].totalExpense += req.totalAmount || 0;
+        if (vNo !== 'Personal') {
+          groups[vNo].totalQty += req.qty || 0;
+          groups[vNo].totalExpense += req.totalAmount || 0;
 
-        const currentKm = parseFloat(req.currentKmReading);
-        const lastKm = parseFloat(req.lastKmReading);
-        if (!isNaN(currentKm) && !isNaN(lastKm) && currentKm > lastKm) {
-          groups[vNo].totalDistance += (currentKm - lastKm);
+          const currentKm = parseFloat(req.currentKmReading);
+          const lastKm = parseFloat(req.lastKmReading);
+          if (!isNaN(currentKm) && !isNaN(lastKm) && currentKm > lastKm) {
+            groups[vNo].totalDistance += (currentKm - lastKm);
+          }
+        } else {
+          groups[vNo].totalDistance += req.qty || 0; // mapped from distanceCovered
+          groups[vNo].totalExpense += req.totalAmount || 0; // actualPaid
         }
-      }
-
-      if (req.mileage && !groups[vNo].expectedAvg) {
-        groups[vNo].expectedAvg = parseFloat(req.mileage);
       }
     });
 
     return Object.values(groups).map((g) => {
-      if (g.expectedAvg === 0) {
+      let expectedAvg = 0;
+      if (g.vehicleNo !== 'Personal') {
         const masterVehicle = masterVehicles.find(
           (v) => v.vehicleNo.toLowerCase() === g.vehicleNo.toLowerCase()
         );
-        if (masterVehicle && masterVehicle.mileage) {
-          g.expectedAvg = parseFloat(masterVehicle.mileage);
+        if (masterVehicle && masterVehicle.mileage && masterVehicle.mileage !== '—' && masterVehicle.mileage !== 'NA') {
+          expectedAvg = parseFloat(masterVehicle.mileage);
         }
       }
 
-      const actualAvg = g.totalQty > 0 ? g.totalDistance / g.totalQty : 0;
-      const mileageDiff = (actualAvg > 0 && g.expectedAvg > 0) ? (actualAvg - g.expectedAvg) : 0;
+      const actualAvg = g.vehicleNo !== 'Personal' && g.totalQty > 0 ? g.totalDistance / g.totalQty : 0;
+      const mileageDiff = g.vehicleNo !== 'Personal' && (actualAvg > 0 && expectedAvg > 0) ? (actualAvg - expectedAvg) : 0;
 
       return {
         ...g,
-        actualAvg: parseFloat(actualAvg.toFixed(2)),
-        mileageDiff: parseFloat(mileageDiff.toFixed(2)),
+        expectedAvg,
+        actualAvg: g.vehicleNo === 'Personal' ? 0 : parseFloat(actualAvg.toFixed(2)),
+        mileageDiff: g.vehicleNo === 'Personal' ? 0 : parseFloat(mileageDiff.toFixed(2)),
       };
     });
   }, [requests, user, masterVehicles]);
@@ -178,7 +290,7 @@ export default function Dashboard() {
     const uniqueVehicles = new Set();
 
     list.forEach((req) => {
-      if (req.vehicleNo) {
+      if (req.vehicleNo && req.vehicleNo !== 'Personal') {
         uniqueVehicles.add(req.vehicleNo);
       }
       if (req.status === 'pending') {
@@ -186,7 +298,9 @@ export default function Dashboard() {
       } else if (req.status === 'completed') {
         completedFilling++;
         totalFuelExpense += req.totalAmount || 0;
-        totalLitresFilled += req.qty || 0;
+        if (req.logType !== 'employee' && req.vehicleNo !== 'Personal') {
+          totalLitresFilled += req.qty || 0;
+        }
       }
     });
 
@@ -206,16 +320,25 @@ export default function Dashboard() {
 
   // Calculate detailed record statistics for filtered log table
   const getSingleRecordMetrics = (req) => {
-    const expected = parseFloat(req.mileage) || 0;
-    let actual = 0;
-    let diff = 0;
-    if (req.status === 'completed' && req.qty) {
-      const dist = (parseFloat(req.currentKmReading) || 0) - (parseFloat(req.lastKmReading) || 0);
-      if (dist > 0) {
-        actual = dist / req.qty;
-        diff = actual - expected;
-      }
+    if (req.vehicleNo === 'Personal') {
+      return {
+        expected: '—',
+        actual: '—',
+        diff: '—',
+        isBetter: false,
+        isWorse: false
+      };
     }
+
+    const masterVehicle = masterVehicles.find(
+      (v) => v.vehicleNo.toLowerCase() === req.vehicleNo.toLowerCase()
+    );
+    const expected = masterVehicle && masterVehicle.mileage && masterVehicle.mileage !== '—' && masterVehicle.mileage !== 'NA'
+      ? parseFloat(masterVehicle.mileage) 
+      : 0;
+
+    const actual = parseFloat(req.mileage) || 0;
+    const diff = expected > 0 && actual > 0 ? actual - expected : 0;
     
     let diffText = '—';
     let isBetter = false;
@@ -243,6 +366,7 @@ export default function Dashboard() {
   };
 
   const getFuelType = (vehicleNo) => {
+    if (vehicleNo === 'Personal') return 'Personal';
     const matched = masterVehicles.find(
       (v) => v.vehicleNo.toLowerCase() === vehicleNo.toLowerCase()
     );
@@ -268,7 +392,7 @@ export default function Dashboard() {
             {(startDate || endDate || selectedLocation || selectedVehicle || selectedDriver) && (
               <button
                 onClick={handleReset}
-                className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 font-bold transition-colors animate-pulse"
+                className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700 font-bold transition-colors"
               >
                 <RefreshCw size={12} />
                 Reset Filters
@@ -329,15 +453,15 @@ export default function Dashboard() {
               </select>
             </div>
 
-            {/* Driver Select */}
+            {/* Driver / Employee Select */}
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Driver</label>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Driver / Employee</label>
               <select
                 value={selectedDriver}
                 onChange={(e) => setSelectedDriver(e.target.value)}
                 className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
               >
-                <option value="">All Drivers</option>
+                <option value="">All Drivers / Employees</option>
                 {filterOptions?.drivers?.map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}
@@ -354,28 +478,28 @@ export default function Dashboard() {
           value={activeMetrics?.totalRequests || 0}
           icon={FileText}
           gradient="from-indigo-500 to-indigo-600"
-          description="Gross slips generated"
+          description="Total logs generated"
         />
         <MetricCard
-          title="Pending Filling"
+          title="Pending Logs"
           value={activeMetrics?.pendingFilling || 0}
           icon={Clock}
           gradient="from-amber-500 to-amber-600"
-          description="Awaiting diesel pump"
+          description="Awaiting filling/payment"
         />
         <MetricCard
-          title="Completed Filling"
+          title="Completed Logs"
           value={activeMetrics?.completedFilling || 0}
           icon={CheckCircle2}
           gradient="from-emerald-500 to-emerald-600"
-          description="Processed slips history"
+          description="Processed logs history"
         />
         <MetricCard
-          title="Total Fuel Expense"
+          title="Total Expense"
           value={formatCurrency(activeMetrics?.totalFuelExpense || 0)}
           icon={IndianRupee}
           gradient="from-rose-500 to-rose-600"
-          description="Cost of finished fills"
+          description="Cost of finished logs"
         />
         <MetricCard
           title="Total Litres Filled"
@@ -409,8 +533,8 @@ export default function Dashboard() {
                     <th className="px-5 py-3.5">Vehicle Number</th>
                     <th className="px-5 py-3.5">Expected Avg.</th>
                     <th className="px-5 py-3.5">Actual Avg.</th>
-                    <th className="px-5 py-3.5">No. of Fillings</th>
-                    <th className="px-5 py-3.5">Total Qty (L)</th>
+                    <th className="px-5 py-3.5">No. of Logs</th>
+                    <th className="px-5 py-3.5">Total Qty / Distance</th>
                     <th className="px-5 py-3.5">Total Expense</th>
                     <th className="px-5 py-3.5">Mileage Diff</th>
                     <th className="px-5 py-3.5"></th>
@@ -427,7 +551,7 @@ export default function Dashboard() {
                     groupedData.map((vehicle) => {
                       const isExpanded = !!expandedVehicles[vehicle.vehicleNo];
                       return (
-                        <React.Fragment key={vehicle.vehicleNo}>
+                        <Fragment key={vehicle.vehicleNo}>
                           {/* Parent Group Row */}
                           <tr
                             onClick={() => toggleVehicle(vehicle.vehicleNo)}
@@ -437,32 +561,36 @@ export default function Dashboard() {
                               {vehicle.vehicleNo}
                             </td>
                             <td className="px-5 py-4 text-sm font-medium text-slate-500">
-                              {vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—'}
+                              {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—')}
                             </td>
                             <td className="px-5 py-4 text-sm font-bold text-emerald-600">
-                              {vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—'}
+                              {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—')}
                             </td>
                             <td className="px-5 py-4 text-sm font-medium text-slate-700">
                               {vehicle.fillingsCount}
                             </td>
                             <td className="px-5 py-4 text-sm text-slate-600">
-                              {vehicle.totalQty.toLocaleString()} L
+                              {vehicle.vehicleNo === 'Personal' ? `${vehicle.totalDistance.toLocaleString()} KM` : `${vehicle.totalQty.toLocaleString()} L`}
                             </td>
                             <td className="px-5 py-4 text-sm font-semibold text-slate-800">
                               {formatCurrency(vehicle.totalExpense)}
                             </td>
                             <td
                               className={`px-5 py-4 text-sm font-bold ${
-                                vehicle.mileageDiff > 0
+                                vehicle.vehicleNo === 'Personal'
+                                  ? 'text-slate-500'
+                                  : vehicle.mileageDiff > 0
                                   ? 'text-emerald-600'
                                   : vehicle.mileageDiff < 0
                                   ? 'text-rose-500'
                                   : 'text-slate-500'
                               }`}
                             >
-                              {vehicle.mileageDiff !== 0
-                                ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L`
-                                : '0.00 KM/L'}
+                              {vehicle.vehicleNo === 'Personal'
+                                ? '—'
+                                : (vehicle.mileageDiff !== 0
+                                  ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L`
+                                  : '0.00 KM/L')}
                             </td>
                             <td className="px-5 py-4 text-slate-400">
                               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -480,21 +608,18 @@ export default function Dashboard() {
                                         <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase">
                                           <th className="px-4 py-2.5 font-mono">Req/Slip No</th>
                                           <th className="px-4 py-2.5">Date</th>
-                                          <th className="px-4 py-2.5">Driver</th>
+                                          <th className="px-4 py-2.5">Driver / Employee</th>
                                           <th className="px-4 py-2.5">Location</th>
-                                          <th className="px-4 py-2.5">Qty (L)</th>
+                                          <th className="px-4 py-2.5">{vehicle.vehicleNo === 'Personal' ? 'Distance (KM)' : 'Qty (L)'}</th>
                                           <th className="px-4 py-2.5">Expense</th>
                                           <th className="px-4 py-2.5 text-right">KM Readings</th>
-                                          <th className="px-4 py-2.5">Slip</th>
+                                          <th className="px-4 py-2.5">Bill / Proof</th>
                                           <th className="px-4 py-2.5">Status</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-100 text-slate-600">
                                         {vehicle.records.map((rec) => {
-                                          const locText =
-                                            rec.location === 'Others'
-                                              ? rec.customLocation || 'Others'
-                                              : `Location ${rec.location}`;
+                                          const locText = formatLocationText(rec.location, rec.customLocation);
                                           return (
                                             <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
                                               <td className="px-4 py-2 font-bold font-mono text-slate-800">
@@ -507,14 +632,18 @@ export default function Dashboard() {
                                                 {rec.issuedTo}
                                               </td>
                                               <td className="px-4 py-2">{locText}</td>
-                                              <td className="px-4 py-2">{rec.qty ? `${rec.qty} L` : '—'}</td>
+                                              <td className="px-4 py-2">
+                                                {rec.qty ? `${rec.qty} ${vehicle.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}
+                                              </td>
                                               <td className="px-4 py-2">
                                                 {rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}
                                               </td>
                                               <td className="px-4 py-2 text-right">
-                                                <div className="text-[10px] text-slate-400">Last: {rec.lastKmReading} KM</div>
+                                                <div className="text-[10px] text-slate-400">
+                                                  {vehicle.vehicleNo === 'Personal' ? 'Start' : 'Last'}: {rec.lastKmReading} KM
+                                                </div>
                                                 <div className="text-[10px] font-bold text-indigo-500">
-                                                  Fill: {rec.currentKmReading || '—'} KM
+                                                  {vehicle.vehicleNo === 'Personal' ? 'End' : 'Fill'}: {rec.currentKmReading || '—'} KM
                                                 </div>
                                               </td>
                                               <td className="px-4 py-2">
@@ -541,7 +670,7 @@ export default function Dashboard() {
                               </td>
                             </tr>
                           )}
-                        </React.Fragment>
+                        </Fragment>
                       );
                     })
                   )}
@@ -562,15 +691,15 @@ export default function Dashboard() {
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Location</th>
                     <th className="px-4 py-3 font-mono">Vehicle</th>
-                    <th className="px-4 py-3">Driver</th>
-                    <th className="px-4 py-3 font-mono">Slip-No</th>
+                    <th className="px-4 py-3">Driver / Employee</th>
+                    <th className="px-4 py-3 font-mono">Slip / Request No</th>
                     <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Qty</th>
+                    <th className="px-4 py-3">Qty / Dist</th>
                     <th className="px-4 py-3">Rate</th>
-                    <th className="px-4 py-3">Slip-Img</th>
-                    <th className="px-4 py-3">Mileage</th>
-                    <th className="px-4 py-3">Last Mileage</th>
-                    <th className="px-4 py-3">Diff in Mileage</th>
+                    <th className="px-4 py-3">Bill / Proof</th>
+                    <th className="px-4 py-3">Expected Avg</th>
+                    <th className="px-4 py-3">Last KM Reading</th>
+                    <th className="px-4 py-3">Mileage / Travel Diff</th>
                     <th className="px-4 py-3">Fuel Type</th>
                   </tr>
                 </thead>
@@ -583,8 +712,7 @@ export default function Dashboard() {
                     </tr>
                   ) : (
                     filteredRequests.map((req) => {
-                      const locText =
-                        req.location === 'Others' ? req.customLocation || 'Others' : `Location ${req.location}`;
+                      const locText = formatLocationText(req.location, req.customLocation);
                       const recStats = getSingleRecordMetrics(req);
                       return (
                         <tr key={req.id} className="hover:bg-slate-50 transition-colors">
@@ -596,8 +724,10 @@ export default function Dashboard() {
                           <td className="px-4 py-3 font-semibold text-slate-800">
                             {req.totalAmount ? formatCurrency(req.totalAmount) : '—'}
                           </td>
-                          <td className="px-4 py-3">{req.qty ? `${req.qty} L` : '—'}</td>
-                          <td className="px-4 py-3">{req.rate ? `${formatCurrency(req.rate)}/L` : '—'}</td>
+                          <td className="px-4 py-3">{req.qty ? `${req.qty} ${req.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}</td>
+                          <td className="px-4 py-3">
+                            {req.rate ? `${formatCurrency(req.rate)}/${req.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}
+                          </td>
                           <td className="px-4 py-3">
                             <button
                               onClick={() => setSelectedSlipRequest(req)}
@@ -629,12 +759,12 @@ export default function Dashboard() {
           </div>
         )
       ) : (
-        /* Standard User View: Shows simple My Requests Table */
+        /* Standard User View: Shows My Requests Table */
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[350px]">
           <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 font-sans">My Request History</h3>
             <button
-              onClick={() => setIsRequestModalOpen(true)}
+              onClick={() => setIsChoiceModalOpen(true)}
               className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap"
               id="request-fuel-btn"
             >
@@ -644,24 +774,45 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 overflow-x-auto min-h-0">
             <TableWrapper
-              headers={['Request No', 'Slip No', 'Vehicle No', 'Odometer Reading', 'Mileage', 'Location', 'Status']}
+              headers={['Request No', 'Slip No', 'Vehicle No', 'Odometer Reading', 'Mileage', 'Location', 'Status', 'Actions']}
               data={requests}
-              emptyMessage="No fuel requests logged"
+              emptyMessage="No travel or fuel requests logged"
               renderRow={(req) => {
-                const locationText =
-                  req.location === 'Others' ? req.customLocation || 'Others' : `Location ${req.location}`;
+                const locationText = formatLocationText(req.location, req.customLocation);
+                const isProcessable = req.logType === 'employee' && !req.proofEnd;
                 return (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
                     <td className="px-5 py-3 text-sm font-bold text-slate-500 font-mono">{req.slipNo || '—'}</td>
                     <td className="px-5 py-3 text-sm font-semibold text-slate-700">{req.vehicleNo}</td>
-                    <td className="px-5 py-3 text-sm text-slate-600 font-mono">{req.lastKmReading} KM</td>
+                    <td className="px-5 py-3 text-sm text-slate-600 font-mono">
+                      {req.vehicleNo === 'Personal' 
+                        ? `${req.lastKmReading} KM${req.currentKmReading ? ` - ${req.currentKmReading} KM` : ''}`
+                        : `${req.lastKmReading} KM`
+                      }
+                    </td>
                     <td className="px-5 py-3 text-sm text-slate-500 font-mono">
-                      {req.mileage ? `${req.mileage} KM/L` : '—'}
+                      {req.vehicleNo === 'Personal' ? '—' : (req.mileage ? `${req.mileage} KM/L` : '—')}
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-600">{locationText}</td>
                     <td className="px-5 py-3">
                       <StatusTag status={req.status} />
+                    </td>
+                    <td className="px-5 py-3">
+                      {isProcessable ? (
+                        <button
+                          onClick={() => {
+                            const orig = allRequests.find(r => r.id === req.id);
+                            setSelectedEditRecord(orig || req);
+                            setIsEmployeeRequestModalOpen(true);
+                          }}
+                          className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-lg transition shadow-sm"
+                        >
+                          Process
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -680,11 +831,69 @@ export default function Dashboard() {
         />
       )}
 
-      {isRequestModalOpen && (
-        <RequestFuelModal
-          isOpen={isRequestModalOpen}
-          onClose={() => setIsRequestModalOpen(false)}
-          onSuccess={fetchDashboardData}
+      {/* Choice Modal for New Request (Standard Users) */}
+      {isChoiceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 border border-slate-100 transform scale-100 transition-all duration-300">
+            <h3 className="text-base font-bold text-slate-800 mb-2 font-sans text-center">Select Request Type</h3>
+            <p className="text-xs text-slate-400 text-center mb-6">Choose whether you want to submit a Personal Travel log or an Office Vehicle filling log.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => {
+                  setIsChoiceModalOpen(false);
+                  setIsEmployeeRequestModalOpen(true);
+                }}
+                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-2xl transition group"
+              >
+                <div className="h-10 w-10 rounded-full bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center mb-3 transition">
+                  <Car className="text-indigo-600 h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition">Personal Travel</span>
+                <span className="text-[10px] text-slate-400 text-center mt-1">Reimburse KM logs</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsChoiceModalOpen(false);
+                  setIsOfficeRequestModalOpen(true);
+                }}
+                className="flex flex-col items-center justify-center p-4 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-2xl transition group"
+              >
+                <div className="h-10 w-10 rounded-full bg-emerald-50 group-hover:bg-emerald-100 flex items-center justify-center mb-3 transition">
+                  <Fuel className="text-emerald-600 h-5 w-5" />
+                </div>
+                <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-600 transition">Office Vehicle</span>
+                <span className="text-[10px] text-slate-400 text-center mt-1">Request advance/filling</span>
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setIsChoiceModalOpen(false)}
+                className="text-xs text-slate-500 hover:text-slate-700 font-bold px-4 py-2"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEmployeeRequestModalOpen && (
+        <EmployeeRequestModal
+          isOpen={isEmployeeRequestModalOpen}
+          onClose={() => {
+            setIsEmployeeRequestModalOpen(false);
+            setSelectedEditRecord(null);
+          }}
+          onRefresh={fetchDashboardData}
+          editRecord={selectedEditRecord}
+        />
+      )}
+
+      {isOfficeRequestModalOpen && (
+        <OfficeRequestModal
+          isOpen={isOfficeRequestModalOpen}
+          onClose={() => setIsOfficeRequestModalOpen(false)}
+          onRefresh={fetchDashboardData}
         />
       )}
     </div>
