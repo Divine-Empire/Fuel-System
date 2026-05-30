@@ -150,6 +150,7 @@ export default function EmployeeApproval() {
   const [loadingApprovers, setLoadingApprovers] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [approvedBy, setApprovedBy] = useState('');
+  const [approvalRemarks, setApprovalRemarks] = useState('');
 
   const fetchLogs = async (showToast = false) => {
     setLoading(true);
@@ -236,11 +237,8 @@ export default function EmployeeApproval() {
   // Trigger Approved By modal dialog
   const triggerApprovalDialog = () => {
     if (selectedRowIndexes.size === 0) return;
-    if (approvers.length > 0) {
-      setApprovedBy(approvers[0]);
-    } else {
-      setApprovedBy('');
-    }
+    setApprovedBy('');
+    setApprovalRemarks('');
     setIsApprovalModalOpen(true);
   };
 
@@ -256,7 +254,7 @@ export default function EmployeeApproval() {
     
     try {
       const rowIndexesArray = Array.from(selectedRowIndexes);
-      await employeeService.approveEmployeeRequestsToSheet(rowIndexesArray, approvedBy);
+      await employeeService.approveEmployeeRequestsToSheet(rowIndexesArray, approvedBy, approvalRemarks.trim());
       
       toast.success(`Successfully approved ${selectedRowIndexes.size} request(s)!`);
       fetchLogs();
@@ -401,6 +399,7 @@ export default function EmployeeApproval() {
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual1</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Delay</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">HOD Remarks</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approval Status</th>
                   </>
                 )}
@@ -553,6 +552,11 @@ export default function EmployeeApproval() {
                           {log.approvedBy || '—'}
                         </td>
 
+                        {/* HOD Remarks */}
+                        <td className="px-5 py-4 text-slate-600 max-w-[200px] truncate" title={log.hodRemarks}>
+                          {log.hodRemarks || '—'}
+                        </td>
+
                         {/* Status */}
                         <td className="px-5 py-4">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full">
@@ -565,7 +569,7 @@ export default function EmployeeApproval() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={15 + (activeTab === 'pending' ? 1 : 5)} className="px-5 py-14 text-center">
+                  <td colSpan={15 + (activeTab === 'pending' ? 1 : 6)} className="px-5 py-14 text-center">
                     <p className="text-slate-400 font-medium text-sm">
                       {searchQuery ? 'No matching logs found' : 'No logs found in this category'}
                     </p>
@@ -637,6 +641,19 @@ export default function EmployeeApproval() {
                     ))}
                   </select>
                 )}
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                  Remarks / Approval Notes
+                </label>
+                <input
+                  type="text"
+                  value={approvalRemarks}
+                  onChange={(e) => setApprovalRemarks(e.target.value)}
+                  placeholder="Enter approval remarks (optional)"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white font-medium text-slate-800"
+                />
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

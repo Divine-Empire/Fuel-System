@@ -122,6 +122,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
   const [loadingMaster, setLoadingMaster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStep, setSubmissionStep] = useState('');
+  const [allEmployeeDeps, setAllEmployeeDeps] = useState([]);
 
   // Form states
   const [dateOfVisit, setDateOfVisit] = useState(new Date().toISOString().split('T')[0]);
@@ -147,30 +148,46 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
   const isServiceDept = department.toLowerCase() === 'service';
   const isProcessMode = !!editRecord;
 
+  // Filter employees when selected department changes
+  useEffect(() => {
+    if (!isProcessMode && allEmployeeDeps.length > 0 && department) {
+      const filtered = allEmployeeDeps
+        .filter(item => item.department.toLowerCase() === department.toLowerCase())
+        .map(item => item.employeeName);
+      setEmployees(filtered);
+      
+      // If the current selected employee name is not in the filtered list, reset it to empty
+      if (!filtered.includes(employeeName)) {
+        setEmployeeName('');
+      }
+    } else if (!isProcessMode) {
+      setEmployees([]);
+      setEmployeeName('');
+    }
+  }, [department, allEmployeeDeps, isProcessMode]);
+
   useEffect(() => {
     const fetchMasterData = async () => {
       setLoadingMaster(true);
       try {
-        // Fetch departments
-        const departmentsList = await fuelService.getDepartmentsFromSheet();
-        const cleanedDeps = departmentsList.filter(Boolean);
-        setDepartments(cleanedDeps);
-        if (cleanedDeps.length > 0) {
-          setDepartment(cleanedDeps[0]);
-        }
+        // Fetch employees and departments mapping
+        const empDepsList = await employeeService.getEmployeesWithDepartmentsFromSheet();
+        setAllEmployeeDeps(empDepsList);
 
-        // Fetch employees
-        const employeesList = await employeeService.getEmployeesFromSheet();
-        const cleanedEmps = employeesList.filter(Boolean);
-        setEmployees(cleanedEmps);
-        if (cleanedEmps.length > 0) {
-          setEmployeeName(cleanedEmps[0]);
-        }
+        // Extract unique departments
+        const uniqueDeps = Array.from(new Set(empDepsList.map(item => item.department))).filter(Boolean);
+        setDepartments(uniqueDeps);
+        
+        // Initialize to empty
+        setDepartment('');
+        setEmployees([]);
+        setEmployeeName('');
       } catch (error) {
         console.error("Failed to load master data from sheet:", error);
         setDepartments(['Admin', 'Service', 'Sales', 'Operations']);
-        setDepartment('Admin');
+        setDepartment('');
         setEmployees([]);
+        setEmployeeName('');
       } finally {
         setLoadingMaster(false);
       }
@@ -202,6 +219,9 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
         // New mode: reset form
         fetchMasterData();
         setDateOfVisit(new Date().toISOString().split('T')[0]);
+        setDepartment('');
+        setEmployees([]);
+        setEmployeeName('');
         setVehicleType('Car');
         setStartTime('');
         setKmReadingStart('');

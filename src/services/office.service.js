@@ -277,9 +277,10 @@ export const officeService = {
       }
 
       const rows = resJson.data.slice(1);
-      // Col J is index 9 (0-based)
+      // Filter by Col G (index 6) === 'WAREHOUSE' and map Col H (index 7)
       const requestors = rows
-        .map(row => (row[9] || '').toString().trim())
+        .filter(row => (row[6] || '').toString().trim().toUpperCase() === 'WAREHOUSE')
+        .map(row => (row[7] || '').toString().trim())
         .filter(req => req !== '');
       
       return Array.from(new Set(requestors));
@@ -329,9 +330,9 @@ export const officeService = {
       }
 
       const rows = resJson.data.slice(1);
-      // Col H is index 7 (0-based)
+      // Col I is index 8 (0-based)
       const modes = rows
-        .map(row => (row[7] || '').toString().trim())
+        .map(row => (row[8] || '').toString().trim())
         .filter(mode => mode !== '');
       
       return Array.from(new Set(modes));

@@ -123,6 +123,7 @@ export const employeeService = {
         let vehicleType = 'Car';
         let distance = '';
         let approvedBy = '';
+        let hodRemarks = '';
         if (row.length > 30) {
           vehicleType = (row[29] || '').toString().trim() || 'Car';
         }
@@ -131,6 +132,9 @@ export const employeeService = {
         }
         if (row.length > 32) {
           approvedBy = (row[31] || '').toString().trim();
+        }
+        if (row.length > 33) {
+          hodRemarks = (row[32] || '').toString().trim();
         }
 
         // RowIndex is the last element
@@ -170,6 +174,7 @@ export const employeeService = {
           vehicleType,
           distance,
           approvedBy,
+          hodRemarks,
           rowIndex
         };
       });
@@ -280,7 +285,7 @@ export const employeeService = {
     return resJson;
   },
 
-  approveEmployeeRequestsToSheet: async (rowIndexes, approvedBy) => {
+  approveEmployeeRequestsToSheet: async (rowIndexes, approvedBy, remarks) => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
     if (!APPS_SCRIPT_URL) {
       throw new Error("Apps Script URL is missing in environment variables");
@@ -294,7 +299,8 @@ export const employeeService = {
     const updatesList = rowIndexes.flatMap((rowIndex) => [
       { rowIndex, col: 18, val: formattedTimestamp },
       { rowIndex, col: 20, val: 'Approved' },
-      { rowIndex, col: 32, val: approvedBy || '' }
+      { rowIndex, col: 32, val: approvedBy || '' },
+      { rowIndex, col: 33, val: remarks || '' }
     ]);
 
     return await updateMultipleCells('Employee-Logs', updatesList);
@@ -387,6 +393,33 @@ export const employeeService = {
       return Array.from(new Set(approvers));
     } catch (error) {
       console.error("Error fetching approvers from sheet:", error);
+      return [];
+    }
+  },
+
+  getEmployeesWithDepartmentsFromSheet: async () => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) return [];
+    try {
+      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Master&headerRow=1&_t=${Date.now()}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const resJson = await response.json();
+      if (!resJson.success) throw new Error(resJson.error || "Failed to fetch employees and departments");
+      
+      if (!resJson.data || resJson.data.length <= 1) {
+        return [];
+      }
+
+      const rows = resJson.data.slice(1);
+      // Col G is index 6, Col H is index 7 (0-based)
+      return rows
+        .map(row => ({
+          department: (row[6] || '').toString().trim(),
+          employeeName: (row[7] || '').toString().trim()
+        }))
+        .filter(item => item.employeeName !== '' && item.department !== '');
+    } catch (error) {
+      console.error("Error fetching employees and departments from sheet:", error);
       return [];
     }
   }
