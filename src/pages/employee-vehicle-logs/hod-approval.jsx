@@ -6,7 +6,8 @@ import {
   Search, 
   PlusCircle, 
   Eye, 
-  RefreshCw 
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { employeeService } from '../../services/employee.service';
 import EmployeeRequestModal from './request-form';
@@ -144,6 +145,12 @@ export default function EmployeeApproval() {
   const [selectedRowIndexes, setSelectedRowIndexes] = useState(new Set());
   const [submittingApproval, setSubmittingApproval] = useState(false);
 
+  // New HOD approver states
+  const [approvers, setApprovers] = useState([]);
+  const [loadingApprovers, setLoadingApprovers] = useState(false);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [approvedBy, setApprovedBy] = useState('');
+
   const fetchLogs = async (showToast = false) => {
     setLoading(true);
     try {
@@ -161,8 +168,21 @@ export default function EmployeeApproval() {
     }
   };
 
+  const fetchApprovers = async () => {
+    setLoadingApprovers(true);
+    try {
+      const list = await employeeService.getApprovedByFromSheet();
+      setApprovers(list);
+    } catch (e) {
+      console.error("Error fetching HOD approvers:", e);
+    } finally {
+      setLoadingApprovers(false);
+    }
+  };
+
   useEffect(() => {
     fetchLogs();
+    fetchApprovers();
   }, []);
 
   // Filter logs based on active tab and search query
@@ -213,15 +233,30 @@ export default function EmployeeApproval() {
     }
   };
 
-  // Process bulk HOD approval
-  const handleBulkApproval = async () => {
+  // Trigger Approved By modal dialog
+  const triggerApprovalDialog = () => {
     if (selectedRowIndexes.size === 0) return;
-    
+    if (approvers.length > 0) {
+      setApprovedBy(approvers[0]);
+    } else {
+      setApprovedBy('');
+    }
+    setIsApprovalModalOpen(true);
+  };
+
+  // Process bulk HOD approval
+  const handleConfirmApproval = async (e) => {
+    e.preventDefault();
+    if (!approvedBy) {
+      return toast.error("Please select who is approving these request(s)");
+    }
+
     setSubmittingApproval(true);
+    setIsApprovalModalOpen(false);
     
     try {
       const rowIndexesArray = Array.from(selectedRowIndexes);
-      await employeeService.approveEmployeeRequestsToSheet(rowIndexesArray);
+      await employeeService.approveEmployeeRequestsToSheet(rowIndexesArray, approvedBy);
       
       toast.success(`Successfully approved ${selectedRowIndexes.size} request(s)!`);
       fetchLogs();
@@ -319,7 +354,7 @@ export default function EmployeeApproval() {
             {selectedRowIndexes.size} travel request(s) selected
           </span>
           <button
-            onClick={handleBulkApproval}
+            onClick={triggerApprovalDialog}
             disabled={submittingApproval}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg text-xs transition shadow-sm active:transform active:scale-95 flex items-center gap-1.5"
           >
@@ -365,6 +400,7 @@ export default function EmployeeApproval() {
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned1</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual1</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Delay</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approval Status</th>
                   </>
                 )}
@@ -512,6 +548,11 @@ export default function EmployeeApproval() {
                           {log.delay1 || '—'}
                         </td>
 
+                        {/* Approved By */}
+                        <td className="px-5 py-4 text-slate-700 font-medium">
+                          {log.approvedBy || '—'}
+                        </td>
+
                         {/* Status */}
                         <td className="px-5 py-4">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full">
@@ -524,7 +565,7 @@ export default function EmployeeApproval() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={15 + (activeTab === 'pending' ? 1 : 4)} className="px-5 py-14 text-center">
+                  <td colSpan={15 + (activeTab === 'pending' ? 1 : 5)} className="px-5 py-14 text-center">
                     <p className="text-slate-400 font-medium text-sm">
                       {searchQuery ? 'No matching logs found' : 'No logs found in this category'}
                     </p>
@@ -552,6 +593,68 @@ export default function EmployeeApproval() {
             </svg>
             <span className="text-sm font-semibold text-slate-800">Approving travel request(s)...</span>
             <span className="text-[10px] text-slate-400">Please do not refresh or close this page</span>
+          </div>
+        </div>
+      )}
+
+      {/* Approved By Dialog Modal */}
+      {isApprovalModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="text-indigo-600" size={18} />
+                <h3 className="font-extrabold text-slate-800 text-base">Approve {selectedRowIndexes.size} Request(s)</h3>
+              </div>
+              <button 
+                onClick={() => setIsApprovalModalOpen(false)}
+                className="p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleConfirmApproval} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                  Approved By
+                </label>
+                {loadingApprovers ? (
+                  <div className="text-xs text-slate-400 animate-pulse">Loading HOD list...</div>
+                ) : (
+                  <select
+                    value={approvedBy}
+                    onChange={(e) => setApprovedBy(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white font-medium text-slate-800 cursor-pointer"
+                    required
+                  >
+                    <option value="" disabled>Select Approver</option>
+                    {approvers.map((app, idx) => (
+                      <option key={idx} value={app}>{app}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsApprovalModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition shadow-sm"
+                >
+                  Confirm Approve
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

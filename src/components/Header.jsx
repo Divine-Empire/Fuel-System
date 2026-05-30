@@ -27,11 +27,11 @@ const Header = ({ onMenuClick, user }) => {
         };
       case '/employee-logs/approval':
         return {
-          title: 'Employee Travel Logs',
+          title: 'Employee Logs - HOD Approval',
         };
       case '/employee-logs/payment':
         return {
-          title: 'Employee Travel Payments',
+          title: 'Employee Logs - Accounts Payment',
         };
       case '/office-logs/advance-payment':
         return {
@@ -39,7 +39,7 @@ const Header = ({ onMenuClick, user }) => {
         };
       case '/office-logs/actual-filling':
         return {
-          title: 'Office Logs - Actual Fuel Filling',
+          title: 'Office Logs - Driver Submission',
         };
       case '/master':
         return {

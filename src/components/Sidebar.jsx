@@ -122,7 +122,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
                     `}
                   >
-                    <span className="text-sm">Approval</span>
+                    <span className="text-sm">HOD-Approval</span>
                   </NavLink>
                   <NavLink
                     to="/employee-logs/payment"
@@ -134,7 +134,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
                     `}
                   >
-                    <span className="text-sm">Payment</span>
+                    <span className="text-sm">Accounts Payment</span>
                   </NavLink>
                 </div>
               )}
@@ -171,7 +171,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
                     `}
                   >
-                    <span className="text-sm">Advance</span>
+                    <span className="text-sm">Advance Payment</span>
                   </NavLink>
                   <NavLink
                     to="/office-logs/actual-filling"
@@ -183,7 +183,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'}
                     `}
                   >
-                    <span className="text-sm">Actual-Filling</span>
+                    <span className="text-sm">Driver Submission</span>
                   </NavLink>
                 </div>
               )}
@@ -202,7 +202,7 @@ const Sidebar = ({ isOpen, onClose }) => {
               {({ isActive }) => (
                 <>
                   <Fuel size={17} className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'} />
-                  <span className="text-sm">Actual-Filling</span>
+                  <span className="text-sm">Driver Submission</span>
                   {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
                 </>
               )}

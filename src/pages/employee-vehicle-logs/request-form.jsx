@@ -8,7 +8,8 @@ import {
   Camera, 
   FileText, 
   Building, 
-  Compass 
+  Compass,
+  ChevronDown
 } from 'lucide-react';
 import { employeeService } from '../../services/employee.service';
 import { fuelService } from '../../services/fuel.service';
@@ -25,6 +26,96 @@ const fileToBase64 = (file) => {
   });
 };
 
+function SearchableSelect({
+  options = [],
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  required
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    setSearchTerm(value || '');
+  }, [value]);
+
+  const filteredOptions = options.filter(opt =>
+    (opt || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+            const matched = options.find(o => o.toLowerCase() === e.target.value.toLowerCase());
+            if (matched) {
+              onChange(matched);
+            }
+          }}
+          onFocus={() => {
+            if (!disabled) setIsOpen(true);
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setIsOpen(false);
+              const matched = options.find(o => o.toLowerCase() === searchTerm.toLowerCase());
+              if (matched) {
+                onChange(matched);
+                setSearchTerm(matched);
+              } else if (searchTerm.trim() === '') {
+                onChange('');
+                setSearchTerm('');
+              } else {
+                onChange(value);
+                setSearchTerm(value || '');
+              }
+            }, 200);
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={required}
+          className="block w-full text-sm bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all pr-8 disabled:opacity-60 disabled:cursor-not-allowed"
+        />
+        <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+          <ChevronDown size={16} />
+        </div>
+      </div>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onMouseDown={() => {
+                  onChange(opt);
+                  setSearchTerm(opt);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-indigo-50 hover:text-indigo-600 transition-colors ${
+                  opt === value ? 'bg-indigo-50 font-bold text-indigo-600' : 'text-slate-700 font-medium'
+                }`}
+              >
+                {opt}
+              </button>
+            ))
+          ) : (
+            <div className="px-4 py-2.5 text-sm text-slate-400 italic">No matches found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editRecord }) {
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -36,6 +127,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
   const [dateOfVisit, setDateOfVisit] = useState(new Date().toISOString().split('T')[0]);
   const [department, setDepartment] = useState('');
   const [employeeName, setEmployeeName] = useState('');
+  const [vehicleType, setVehicleType] = useState('Car');
   const [startTime, setStartTime] = useState('');
   const [kmReadingStart, setKmReadingStart] = useState('');
   const [proofStartFile, setProofStartFile] = useState(null);
@@ -90,6 +182,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
         setDateOfVisit(editRecord.requestDate ? editRecord.requestDate.split('T')[0] : (editRecord.dateOfVisit || ''));
         setDepartment(editRecord.department || '');
         setEmployeeName(editRecord.issuedTo || editRecord.employeeName || '');
+        setVehicleType(editRecord.vehicleType || 'Car');
         setStartTime(editRecord.startTime || '');
         setKmReadingStart(editRecord.lastKmReading || editRecord.kmReadingStart || '');
         setProofStartFile(null);
@@ -109,6 +202,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
         // New mode: reset form
         fetchMasterData();
         setDateOfVisit(new Date().toISOString().split('T')[0]);
+        setVehicleType('Car');
         setStartTime('');
         setKmReadingStart('');
         setProofStartFile(null);
@@ -218,8 +312,8 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
     if (hasEndDetails) {
       if (!endTime) return toast.error('Please upload End Journey photo to detect End Time');
       if (!kmReadingEnd || parseFloat(kmReadingEnd) < 0) return toast.error('Please enter a valid End KM Reading');
-      if (parseFloat(kmReadingEnd) < parseFloat(kmReadingStart)) {
-        return toast.error('End KM Reading cannot be less than Start KM Reading');
+      if (parseFloat(kmReadingEnd) <= parseFloat(kmReadingStart)) {
+        return toast.error('End KM Reading must be greater than Start KM Reading');
       }
       if (isProcessMode && !proofEndFile) {
         return toast.error('Please upload End Journey odometer photo');
@@ -254,13 +348,15 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
         );
       }
 
+      const distanceVal = kmReadingStart && kmReadingEnd ? parseFloat(kmReadingEnd) - parseFloat(kmReadingStart) : 0;
       if (isProcessMode) {
         setSubmissionStep("Saving travel log end details...");
         await employeeService.completeEmployeeJourneyInSheet(editRecord.rowIndex, {
           endTime,
           kmReadingEnd: parseFloat(kmReadingEnd),
           proofEnd: proofEndUrl,
-          journeyOutcome: journeyOutcome.trim()
+          journeyOutcome: journeyOutcome.trim(),
+          distance: distanceVal
         });
         toast.success("Travel log completed successfully!");
       } else {
@@ -269,6 +365,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
           dateOfVisit,
           department,
           employeeName,
+          vehicleType,
           startTime,
           kmReadingStart: parseFloat(kmReadingStart),
           proofStart: proofStartUrl,
@@ -279,7 +376,8 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
           clientName: isServiceDept ? clientName.trim() : '',
           siteLocation: isServiceDept ? siteLocation.trim() : '',
           machineDetails: isServiceDept ? machineDetails.trim() : '',
-          journeyOutcome: hasEndDetails ? journeyOutcome.trim() : ''
+          journeyOutcome: hasEndDetails ? journeyOutcome.trim() : '',
+          distance: hasEndDetails ? distanceVal : ''
         });
         toast.success("Travel log request submitted successfully!");
       }
@@ -298,6 +396,8 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
   const inputCls = "block w-full text-sm bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all";
   const selectCls = "block w-full text-sm bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all";
   const labelCls = "text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5";
+
+  const isKmEndInvalid = kmReadingEnd !== '' && parseFloat(kmReadingEnd) <= parseFloat(kmReadingStart);
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -355,8 +455,8 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
                     General Information
                   </h2>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="col-span-1 md:col-span-3">
                       <label className={labelCls}>Date of Visit</label>
                       <input
                         type="date"
@@ -368,44 +468,41 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
                       />
                     </div>
 
-                    <div>
+                    <div className="col-span-1 md:col-span-3">
                       <label className={labelCls}>Department</label>
-                      <select
+                      <SearchableSelect
+                        options={departments}
                         value={department}
-                        onChange={(e) => setDepartment(e.target.value)}
-                        className={selectCls}
-                        required
+                        onChange={setDepartment}
+                        placeholder="Select Department"
                         disabled={isProcessMode}
-                      >
-                        {isProcessMode ? (
-                          <option value={department}>{department}</option>
-                        ) : (
-                          departments.map((dep, idx) => (
-                            <option key={idx} value={dep}>{dep}</option>
-                          ))
-                        )}
-                      </select>
+                        required
+                      />
                     </div>
 
-                    <div>
+                    <div className="col-span-1 md:col-span-4">
                       <label className={labelCls}>Employee Name</label>
-                      <select
+                      <SearchableSelect
+                        options={employees}
                         value={employeeName}
-                        onChange={(e) => setEmployeeName(e.target.value)}
+                        onChange={setEmployeeName}
+                        placeholder="Select Employee"
+                        disabled={isProcessMode}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2">
+                      <label className={labelCls}>Vehicle Type</label>
+                      <select
+                        value={vehicleType}
+                        onChange={(e) => setVehicleType(e.target.value)}
                         className={selectCls}
                         required
                         disabled={isProcessMode}
                       >
-                        {isProcessMode ? (
-                          <option value={employeeName}>{employeeName}</option>
-                        ) : (
-                          <>
-                            <option value="" disabled>Select Employee</option>
-                            {employees.map((emp, idx) => (
-                              <option key={idx} value={emp}>{emp}</option>
-                            ))}
-                          </>
-                        )}
+                        <option value="Car">Car</option>
+                        <option value="Bike">Bike</option>
                       </select>
                     </div>
                   </div>
@@ -503,9 +600,24 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
                           value={kmReadingEnd}
                           onChange={(e) => setKmReadingEnd(e.target.value)}
                           placeholder="e.g. 15530"
-                          className={inputCls}
+                          className={`${inputCls} ${isKmEndInvalid ? 'border-rose-300 focus:ring-rose-500' : ''}`}
                         />
+                        {isKmEndInvalid && (
+                          <p className="text-[11px] text-rose-500 font-semibold mt-1">End KM Reading must be greater than Start KM Reading</p>
+                        )}
                       </div>
+
+                      {kmReadingStart && kmReadingEnd && parseFloat(kmReadingEnd) > parseFloat(kmReadingStart) && (
+                        <div>
+                          <label className={labelCls}>Calculated Distance (KM)</label>
+                          <input
+                            type="text"
+                            value={`${parseFloat(kmReadingEnd) - parseFloat(kmReadingStart)} KM`}
+                            className={`${inputCls} bg-indigo-50/50 text-indigo-700 font-bold border-indigo-200`}
+                            readOnly
+                          />
+                        </div>
+                      )}
 
                       <div>
                         <label className={labelCls}>Proof (End KM Photo)</label>
@@ -635,8 +747,12 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
             
             <button
               type="submit"
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5"
-              disabled={submitting || loadingMaster}
+              className={`px-6 py-2 text-white font-bold rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-1.5 ${
+                submitting || loadingMaster || isKmEndInvalid
+                  ? 'bg-indigo-400 cursor-not-allowed opacity-60'
+                  : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
+              disabled={submitting || loadingMaster || isKmEndInvalid}
             >
               {submitting ? (
                 <>

@@ -56,16 +56,6 @@ const Login = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleDemoCredential = (userId) => {
-    if (userId === 'admin') {
-      setId('admin');
-      setPassword('admin123');
-    } else if (userId === 'user') {
-      setId('user');
-      setPassword('user123');
-    }
-  };
-
   return (
     <div className="min-h-screen w-full flex flex-col bg-gradient-to-br from-sky-50 to-sky-100">
       {/* Center Content */}
@@ -160,39 +150,6 @@ const Login = () => {
               )}
             </button>
           </form>
-
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500 font-semibold">Demo Credentials</span>
-            </div>
-          </div>
-
-          {/* Demo Credentials */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-500 text-center mb-3 uppercase tracking-wider">Quick Login Options</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => handleDemoCredential('admin')}
-                className="flex flex-col items-center justify-center p-3 bg-white border border-gray-200 hover:border-sky-500 hover:shadow-md hover:bg-sky-50 rounded-lg transition-all group"
-              >
-                <span className="font-bold text-gray-800 text-sm group-hover:text-sky-700">Admin</span>
-                <span className="text-[10px] text-gray-500 font-mono mt-1">ID: admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoCredential('user')}
-                className="flex flex-col items-center justify-center p-3 bg-white border border-gray-200 hover:border-sky-500 hover:shadow-md hover:bg-sky-50 rounded-lg transition-all group"
-              >
-                <span className="font-bold text-gray-800 text-sm group-hover:text-sky-700">User</span>
-                <span className="text-[10px] text-gray-500 font-mono mt-1">ID: user</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

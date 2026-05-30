@@ -58,7 +58,7 @@ export default function Layout() {
               `}
             >
               <Fuel size={20} />
-              <span className="text-[10px] tracking-tight">Actual-Filling</span>
+              <span className="text-[10px] tracking-tight">Driver Submission</span>
             </NavLink>
             <NavLink
               to="/profile"

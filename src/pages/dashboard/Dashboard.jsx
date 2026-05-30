@@ -126,7 +126,20 @@ export default function Dashboard() {
           fuelType: 'Personal',
           rowIndex: req.rowIndex,
           proofStart: req.proofStart,
-          proofEnd: req.proofEnd
+          proofEnd: req.proofEnd,
+          vehicleType: req.vehicleType || 'Car',
+          approvalByHod: req.approvalByHod,
+          actual1: req.actual1,
+          actual2: req.actual2,
+          paymentStatus: req.paymentStatus,
+          distance: req.distance || '',
+          department: req.department || '',
+          startTime: req.startTime || '',
+          purposeOfVisit: req.purposeOfVisit || '',
+          clientName: req.clientName || '',
+          siteLocation: req.siteLocation || '',
+          machineDetails: req.machineDetails || '',
+          journeyOutcome: req.journeyOutcome || ''
         };
       });
 
@@ -155,7 +168,9 @@ export default function Dashboard() {
           actualDriver: req.actualDriver,
           fuelType: getFuelType(req.vehicleNo),
           rowIndex: req.rowIndex,
-          mileage: req.mileage
+          mileage: req.mileage,
+          actual1: req.actual1,
+          planned1: req.planned1
         };
       });
 
@@ -193,6 +208,33 @@ export default function Dashboard() {
   };
 
   const { requests = [], filterOptions = {} } = data || {};
+
+  // Helper to determine status for standard user logs
+  const getUserRequestStatus = (r) => {
+    if (r.logType === 'employee') {
+      if (r.approvalByHod !== 'Approved') {
+        return 'HOD-Approval';
+      }
+      return 'Accounts Payment';
+    } else {
+      if (!r.actual1) {
+        return 'Advance Payment';
+      }
+      return 'Driver Submission';
+    }
+  };
+
+  // Filter requests for standard user view
+  const userRequests = useMemo(() => {
+    if (user?.role === 'ADMIN') return [];
+    return (requests || []).filter((req) => {
+      if (req.logType === 'employee') {
+        return req.status === 'pending';
+      } else {
+        return req.planned1 !== '' && !req.actual1;
+      }
+    });
+  }, [requests, user]);
 
   // Check if any admin filter is active
   const isFilterActive = useMemo(() => {
@@ -291,6 +333,7 @@ export default function Dashboard() {
     let completedFilling = 0;
     let totalFuelExpense = 0;
     let totalLitresFilled = 0;
+    let totalDistance = 0;
     const uniqueVehicles = new Set();
 
     list.forEach((req) => {
@@ -305,6 +348,16 @@ export default function Dashboard() {
         if (req.logType !== 'employee' && req.vehicleNo !== 'Personal') {
           totalLitresFilled += req.qty || 0;
         }
+
+        if (req.vehicleNo === 'Personal' || req.logType === 'employee') {
+          totalDistance += parseFloat(req.distance) || parseFloat(req.qty) || 0;
+        } else {
+          const currentKm = parseFloat(req.currentKmReading);
+          const lastKm = parseFloat(req.lastKmReading);
+          if (!isNaN(currentKm) && !isNaN(lastKm) && currentKm > lastKm) {
+            totalDistance += (currentKm - lastKm);
+          }
+        }
       }
     });
 
@@ -315,6 +368,7 @@ export default function Dashboard() {
       totalFuelExpense,
       totalLitresFilled,
       vehiclesCount: uniqueVehicles.size,
+      totalDistance
     };
   }, [requests, filteredRequests, user]);
 
@@ -492,11 +546,11 @@ export default function Dashboard() {
           description="Awaiting filling/payment"
         />
         <MetricCard
-          title="Completed Logs"
-          value={activeMetrics?.completedFilling || 0}
-          icon={CheckCircle2}
+          title="Distance Travelled"
+          value={`${(activeMetrics?.totalDistance || 0).toLocaleString()} KM`}
+          icon={Car}
           gradient="from-emerald-500 to-emerald-600"
-          description="Processed logs history"
+          description="Total distance covered"
         />
         <MetricCard
           title="Total Expense"
@@ -637,7 +691,10 @@ export default function Dashboard() {
                                               </td>
                                               <td className="px-4 py-2">{locText}</td>
                                               <td className="px-4 py-2">
-                                                {rec.qty ? `${rec.qty} ${vehicle.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}
+                                                {vehicle.vehicleNo === 'Personal' 
+                                                  ? (rec.distance ? `${rec.distance} KM` : (rec.qty ? `${rec.qty} KM` : '—')) 
+                                                  : (rec.qty ? `${rec.qty} L` : '—')
+                                                }
                                               </td>
                                               <td className="px-4 py-2">
                                                 {rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}
@@ -699,6 +756,7 @@ export default function Dashboard() {
                     <th className="px-4 py-3 font-mono">Slip / Request No</th>
                     <th className="px-4 py-3">Amount</th>
                     <th className="px-4 py-3">Qty / Dist</th>
+                    <th className="px-4 py-3">Calculated Distance</th>
                     <th className="px-4 py-3">Rate</th>
                     <th className="px-4 py-3">Bill / Proof</th>
                     <th className="px-4 py-3">Expected Avg</th>
@@ -710,7 +768,7 @@ export default function Dashboard() {
                 <tbody className="divide-y divide-slate-100 text-slate-600">
                   {filteredRequests.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={14} className="px-4 py-8 text-center text-slate-400">
                         No requests match the selected filters.
                       </td>
                     </tr>
@@ -729,6 +787,7 @@ export default function Dashboard() {
                             {req.totalAmount ? formatCurrency(req.totalAmount) : '—'}
                           </td>
                           <td className="px-4 py-3">{req.qty ? `${req.qty} ${req.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}</td>
+                          <td className="px-4 py-3 font-mono">{req.distance ? `${req.distance} KM` : '—'}</td>
                           <td className="px-4 py-3">
                             {req.rate ? `${formatCurrency(req.rate)}/${req.vehicleNo === 'Personal' ? 'KM' : 'L'}` : '—'}
                           </td>
@@ -778,9 +837,9 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 overflow-x-auto min-h-0">
             <TableWrapper
-              headers={['Request No', 'Slip No', 'Vehicle No', 'Odometer Reading', 'Mileage', 'Location', 'Status', 'Actions']}
-              data={requests}
-              emptyMessage="No travel or fuel requests logged"
+              headers={['Request No', 'Date', 'Employee Name', 'Vehicle No', 'Odometer Reading', 'Calculated Distance', 'Mileage', 'Location', 'Status', 'Actions']}
+              data={userRequests}
+              emptyMessage="No pending travel or advance payment requests logged"
               renderRow={(req) => {
                 const locationText = formatLocationText(req.location, req.customLocation);
                 const isEmployeeProcessable = req.logType === 'employee' && !req.proofEnd;
@@ -788,7 +847,12 @@ export default function Dashboard() {
                 return (
                   <tr key={req.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3 text-sm font-bold text-slate-900 font-mono">{req.requestNo}</td>
-                    <td className="px-5 py-3 text-sm font-bold text-slate-500 font-mono">{req.slipNo || '—'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-600">
+                      {formatDate(req.fillingDate || req.requestDate)}
+                    </td>
+                    <td className="px-5 py-3 text-sm font-semibold text-slate-700">
+                      {req.issuedTo || '—'}
+                    </td>
                     <td className="px-5 py-3 text-sm font-semibold text-slate-700">{req.vehicleNo}</td>
                     <td className="px-5 py-3 text-sm text-slate-600 font-mono">
                       {req.vehicleNo === 'Personal' 
@@ -796,12 +860,15 @@ export default function Dashboard() {
                         : `${req.lastKmReading} KM`
                       }
                     </td>
+                    <td className="px-5 py-3 text-sm text-slate-600 font-mono">
+                      {req.distance ? `${req.distance} KM` : '—'}
+                    </td>
                     <td className="px-5 py-3 text-sm text-slate-500 font-mono">
                       {req.vehicleNo === 'Personal' ? '—' : (req.mileage ? `${req.mileage} KM/L` : '—')}
                     </td>
                     <td className="px-5 py-3 text-sm text-slate-600">{locationText}</td>
                     <td className="px-5 py-3">
-                      <StatusTag status={req.status} />
+                      <StatusTag status={getUserRequestStatus(req)} />
                     </td>
                     <td className="px-5 py-3">
                       {isEmployeeProcessable ? (

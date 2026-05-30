@@ -222,7 +222,9 @@ export default function EmployeePayment() {
     e.preventDefault();
     if (!selectedLogForPayment) return;
 
-    const distanceVal = (parseFloat(selectedLogForPayment.kmReadingEnd) || 0) - (parseFloat(selectedLogForPayment.kmReadingStart) || 0);
+    const distanceVal = selectedLogForPayment.distance !== '' 
+      ? parseFloat(selectedLogForPayment.distance) || 0 
+      : Math.max(0, (parseFloat(selectedLogForPayment.kmReadingEnd) || 0) - (parseFloat(selectedLogForPayment.kmReadingStart) || 0));
     const distanceCovered = distanceVal > 0 ? distanceVal : 0;
     const calculatedPrice = distanceCovered * parseFloat(rate);
 
@@ -255,7 +257,9 @@ export default function EmployeePayment() {
 
   // Helper calculations for modal
   const modalDistance = selectedLogForPayment 
-    ? Math.max(0, (parseFloat(selectedLogForPayment.kmReadingEnd) || 0) - (parseFloat(selectedLogForPayment.kmReadingStart) || 0))
+    ? (selectedLogForPayment.distance !== '' 
+        ? parseFloat(selectedLogForPayment.distance) || 0 
+        : Math.max(0, (parseFloat(selectedLogForPayment.kmReadingEnd) || 0) - (parseFloat(selectedLogForPayment.kmReadingStart) || 0)))
     : 0;
   const modalCalculatedPrice = modalDistance * (parseFloat(rate) || 0);
 
@@ -379,7 +383,7 @@ export default function EmployeePayment() {
                 ))
               ) : filteredLogs.length > 0 ? (
                 filteredLogs.map((log) => {
-                  const kmCoveredEst = Math.max(0, (parseFloat(log.kmReadingEnd) || 0) - (parseFloat(log.kmReadingStart) || 0));
+                  const kmCoveredEst = log.distance !== '' ? log.distance : Math.max(0, (parseFloat(log.kmReadingEnd) || 0) - (parseFloat(log.kmReadingStart) || 0));
                   return (
                     <tr key={log.id} className="hover:bg-slate-50/50 transition-colors whitespace-nowrap text-slate-600 text-sm">
                       {activeTab === 'pending' && (
@@ -502,7 +506,7 @@ export default function EmployeePayment() {
                         <>
                           {/* KM Covered */}
                           <td className="px-5 py-4 text-slate-700 font-semibold">
-                            {log.distanceCovered} KM
+                            {log.distance || log.distanceCovered || '0'} KM
                           </td>
 
                           {/* Rate */}
@@ -690,7 +694,7 @@ export default function EmployeePayment() {
                     >
                       <option value="paid">Paid</option>
                       <option value="partial">Partial</option>
-                      <option value="pending">Pending</option>
+                      <option value="pending">Hold</option>
                     </select>
                   </div>
 

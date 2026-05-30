@@ -27,15 +27,9 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
 
         const cleanedVehicles = vehiclesList.filter(v => v && v.vehicleNo);
         setVehicles(cleanedVehicles);
-        if (cleanedVehicles.length > 0) {
-          setVehicleNo(cleanedVehicles[0].vehicleNo);
-        }
 
         const cleanedRequestors = requestorsList.filter(Boolean);
         setRequestors(cleanedRequestors);
-        if (cleanedRequestors.length > 0) {
-          setRequestedBy(cleanedRequestors[0]);
-        }
       } catch (error) {
         console.error("Failed to load master data from sheet:", error);
         setVehicles([]);
