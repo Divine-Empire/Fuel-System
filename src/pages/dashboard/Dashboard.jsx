@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import {
   IndianRupee,
   FileText,
@@ -64,6 +62,17 @@ const formatLocationText = (loc, customLoc) => {
   return loc;
 };
 
+const appendEmailToList = (currentValue, emailToAdd) => {
+  const emails = currentValue
+    .split(',')
+    .map(e => e.trim())
+    .filter(e => e !== '');
+  if (!emails.includes(emailToAdd)) {
+    emails.push(emailToAdd);
+  }
+  return emails.join(', ');
+};
+
 export default function Dashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -84,275 +93,12 @@ export default function Dashboard() {
   const [isEmployeeRequestModalOpen, setIsEmployeeRequestModalOpen] = useState(false);
   const [isOfficeRequestModalOpen, setIsOfficeRequestModalOpen] = useState(false);
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-
-  const generateWeeklyReportPdf = async () => {
-    setGeneratingPdf(true);
-    try {
-      // 1. Filter completed office logs
-      let officeLogs = allRequests.filter(
-        (req) => req.logType === 'office' && recIsCompleted(req)
-      );
-
-      // 2. Filter out Sunday's data
-      officeLogs = officeLogs.filter((req) => {
-        const dateStr = req.fillingDate || req.requestDate;
-        if (!dateStr) return false;
-        const d = new Date(dateStr);
-        return d.getDay() !== 0; // Exclude Sundays (0)
-      });
-
-      // 3. Filter by date range or default to last 7 calendar days of log data
-      let startRange = startDate;
-      let endRange = endDate;
-
-      if (startDate && endDate) {
-        officeLogs = officeLogs.filter((req) => {
-          const date = req.fillingDate || req.requestDate;
-          return date >= startDate && date <= endDate;
-        });
-      } else {
-        // Find latest log date and get past 7 calendar days
-        const dates = officeLogs
-          .map((req) => new Date(req.fillingDate || req.requestDate).getTime())
-          .filter(Boolean);
-        if (dates.length > 0) {
-          const latestTime = Math.max(...dates);
-          const sevenDaysAgo = latestTime - 7 * 24 * 60 * 60 * 1000;
-          
-          const pad = (num) => String(num).padStart(2, '0');
-          const formatDateStr = (timestamp) => {
-            const d = new Date(timestamp);
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-          };
-          
-          startRange = formatDateStr(sevenDaysAgo);
-          endRange = formatDateStr(latestTime);
-
-          officeLogs = officeLogs.filter((req) => {
-            const date = new Date(req.fillingDate || req.requestDate).getTime();
-            return date >= sevenDaysAgo && date <= latestTime;
-          });
-        } else {
-          startRange = 'N/A';
-          endRange = 'N/A';
-        }
-      }
-
-      if (officeLogs.length === 0) {
-        toast.error("No office vehicle logs found in the selected weekly range (excluding Sundays).");
-        setGeneratingPdf(false);
-        return;
-      }
-
-      // Group by vehicle
-      const vehiclesGroup = {};
-      officeLogs.forEach((req) => {
-        const vNo = req.vehicleNo;
-        if (!vNo) return;
-        if (!vehiclesGroup[vNo]) {
-          vehiclesGroup[vNo] = [];
-        }
-        vehiclesGroup[vNo].push(req);
-      });
-
-      // Sort logs within each vehicle by date
-      Object.keys(vehiclesGroup).forEach((vNo) => {
-        vehiclesGroup[vNo].sort((a, b) => {
-          const dateA = a.fillingDate || a.requestDate || '';
-          const dateB = b.fillingDate || b.requestDate || '';
-          return dateA.localeCompare(dateB);
-        });
-      });
-
-      // 4. Create the beautifully styled HTML container for report
-      const reportDiv = document.createElement('div');
-      reportDiv.style.position = 'absolute';
-      reportDiv.style.left = '-9999px';
-      reportDiv.style.top = '-9999px';
-      reportDiv.style.width = '800px';
-      reportDiv.style.backgroundColor = '#ffffff';
-      reportDiv.style.color = '#1e293b';
-      reportDiv.style.padding = '40px';
-      reportDiv.style.fontFamily = 'Inter, system-ui, sans-serif';
-
-      // Header block
-      let htmlContent = `
-        <div style="border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 24px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <h1 style="font-size: 24px; font-weight: 800; color: #4f46e5; margin: 0;">DIVINE EMPIRE</h1>
-              <p style="font-size: 12px; color: #64748b; font-weight: 600; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">Fuel Management System</p>
-            </div>
-            <div style="text-align: right;">
-              <h2 style="font-size: 14px; font-weight: 700; color: #1e293b; margin: 0;">Weekly Office Vehicle Report</h2>
-              <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">Range: <strong>${startRange}</strong> to <strong>${endRange}</strong></p>
-            </div>
-          </div>
-        </div>
-        
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
-          <div>
-            <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block;">Generated On</span>
-            <span style="font-size: 12px; font-weight: 700; color: #334155; margin-top: 4px; display: block;">${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}</span>
-          </div>
-          <div>
-            <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block;">Office Vehicles</span>
-            <span style="font-size: 12px; font-weight: 700; color: #334155; margin-top: 4px; display: block;">${Object.keys(vehiclesGroup).length}</span>
-          </div>
-          <div>
-            <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; display: block;">Report Criteria</span>
-            <span style="font-size: 12px; font-weight: 700; color: #64748b; margin-top: 4px; display: block;">Excludes Sundays</span>
-          </div>
-        </div>
-      `;
-
-      // Render each vehicle summary
-      Object.keys(vehiclesGroup).forEach((vehicleNo) => {
-        const logs = vehiclesGroup[vehicleNo];
-        
-        // Compute overall vehicle stats
-        let totalDistance = 0;
-        let totalQty = 0;
-        let expectedAvg = 0;
-
-        // Get expected average from master vehicle list
-        const masterVehicle = masterVehicles.find(
-          (v) => v.vehicleNo.toLowerCase() === vehicleNo.toLowerCase()
-        );
-        if (masterVehicle && masterVehicle.mileage && masterVehicle.mileage !== '—' && masterVehicle.mileage !== 'NA') {
-          expectedAvg = parseFloat(masterVehicle.mileage);
-        }
-
-        logs.forEach(req => {
-          const currentKm = parseFloat(req.currentKmReading);
-          const lastKm = parseFloat(req.lastKmReading);
-          if (!isNaN(currentKm) && !isNaN(lastKm) && currentKm > lastKm) {
-            totalDistance += (currentKm - lastKm);
-          }
-          totalQty += parseFloat(req.qty) || 0;
-        });
-
-        const overallMileage = totalQty > 0 ? (totalDistance / totalQty).toFixed(2) : '0.00';
-
-        htmlContent += `
-          <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 16px;">
-              <h3 style="font-size: 16px; font-weight: 800; color: #4f46e5; margin: 0; font-family: monospace; letter-spacing: 0.05em;">${vehicleNo}</h3>
-              <div style="display: flex; gap: 12px;">
-                <span style="font-size: 11px; background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; font-weight: 600;">Distance: <strong>${totalDistance.toLocaleString()} KM</strong></span>
-                <span style="font-size: 11px; background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; font-weight: 600;">Consumption: <strong>${totalQty.toFixed(2)} L</strong></span>
-                <span style="font-size: 11px; background-color: #e0e7ff; color: #4338ca; padding: 4px 8px; border-radius: 6px; font-weight: 700;">Mileage: <strong>${overallMileage} KM/L</strong></span>
-              </div>
-            </div>
-
-            <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
-              <thead>
-                <tr style="border-bottom: 2px solid #f1f5f9; color: #64748b; font-weight: 700; text-transform: uppercase;">
-                  <th style="padding: 8px 12px;">Day & Date</th>
-                  <th style="padding: 8px 12px;">Odometer (Start ➔ End)</th>
-                  <th style="padding: 8px 12px;">Distance</th>
-                  <th style="padding: 8px 12px;">Fuel Filled</th>
-                  <th style="padding: 8px 12px;">Calculated Mileage</th>
-                  <th style="padding: 8px 12px;">Actual Mileage</th>
-                  <th style="padding: 8px 12px; text-align: center;">Discrepancy</th>
-                </tr>
-              </thead>
-              <tbody>
-        `;
-
-        logs.forEach((req) => {
-          const dateStr = req.fillingDate || req.requestDate || '';
-          let dayName = '';
-          if (dateStr) {
-            const d = new Date(dateStr);
-            if (!isNaN(d.getTime())) {
-              dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-            }
-          }
-
-          const currentKm = parseFloat(req.currentKmReading) || 0;
-          const lastKm = parseFloat(req.lastKmReading) || 0;
-          const distance = currentKm > lastKm ? currentKm - lastKm : 0;
-          const qty = parseFloat(req.qty) || 0;
-          
-          const calcMileageVal = qty > 0 ? distance / qty : 0;
-          const calcMileage = qty > 0 ? calcMileageVal.toFixed(2) : '0.00';
-          const sheetMileage = req.mileage ? parseFloat(req.mileage).toFixed(2) : '0.00';
-          
-          const differs = qty > 0 && Math.abs(calcMileageVal - parseFloat(req.mileage || 0)) > 0.05;
-
-          const statusBadge = differs
-            ? `<span style="background-color: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; padding: 2px 6px; border-radius: 9999px; font-weight: 700; font-size: 9px;">DIFFERS</span>`
-            : `<span style="background-color: #ecfdf5; color: #047857; border: 1px solid #d1fae5; padding: 2px 6px; border-radius: 9999px; font-weight: 700; font-size: 9px;">MATCHES</span>`;
-
-          htmlContent += `
-            <tr style="border-bottom: 1px solid #f1f5f9; color: #475569;">
-              <td style="padding: 10px 12px; font-weight: 600;">
-                <div style="font-size: 11px; color: #1e293b;">${dateStr}</div>
-                <div style="font-size: 9px; color: #94a3b8; text-transform: uppercase;">${dayName}</div>
-              </td>
-              <td style="padding: 10px 12px; font-family: monospace;">${lastKm.toLocaleString()} ➔ ${currentKm.toLocaleString()}</td>
-              <td style="padding: 10px 12px; font-weight: 600;">${distance} KM</td>
-              <td style="padding: 10px 12px;">${qty.toFixed(2)} L</td>
-              <td style="padding: 10px 12px; font-weight: 700; color: #4f46e5;">${calcMileage} KM/L</td>
-              <td style="padding: 10px 12px; font-weight: 600;">${sheetMileage} KM/L</td>
-              <td style="padding: 10px 12px; text-align: center;">${statusBadge}</td>
-            </tr>
-          `;
-        });
-
-        htmlContent += `
-              </tbody>
-            </table>
-          </div>
-        `;
-      });
-
-      reportDiv.innerHTML = htmlContent;
-      document.body.appendChild(reportDiv);
-
-      // Give a tiny frame delay to render HTML DOM styles fully
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      const canvas = await html2canvas(reportDiv, {
-        scale: 2,
-        useCORS: true,
-        logging: false
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF('p', 'pt', 'a4');
-      const imgWidth = 595.28;
-      const pageHeight = 841.89;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Add subsequent pages if content overflows A4 height
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const fileName = `Weekly_Office_Vehicle_Report_${startRange}_to_${endRange}.pdf`;
-      pdf.save(fileName);
-      
-      document.body.removeChild(reportDiv);
-      toast.success("PDF report generated successfully!");
-    } catch (err) {
-      console.error(err);
-      toast.error("An error occurred while generating the PDF.");
-    } finally {
-      setGeneratingPdf(false);
-    }
-  };
+  const [selectedRequestIds, setSelectedRequestIds] = useState([]);
+  const [submittingEmail, setSubmittingEmail] = useState(false);
+  const [masterEmails, setMasterEmails] = useState([]);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [toEmail, setToEmail] = useState('');
+  const [ccEmail, setCcEmail] = useState('');
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -400,6 +146,7 @@ export default function Dashboard() {
           proofEnd: req.proofEnd,
           vehicleType: req.vehicleType || 'Car',
           approvalByHod: req.approvalByHod,
+          approvedBy: req.approvedBy || '',
           actual1: req.actual1,
           actual2: req.actual2,
           paymentStatus: req.paymentStatus,
@@ -457,6 +204,24 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    const loadEmails = async () => {
+      try {
+        const emails = await employeeService.getEmailsFromSheet();
+        setMasterEmails(emails);
+      } catch (err) {
+        console.error("Failed to load master emails", err);
+      }
+    };
+    if (user?.role === 'ADMIN') {
+      loadEmails();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    setSelectedRequestIds([]);
+  }, [startDate, endDate, selectedLocation, selectedVehicle, selectedDriver]);
 
   const data = useMemo(() => {
     const filter = startDate && endDate ? { start: startDate, end: endDate } : null;
@@ -595,6 +360,46 @@ export default function Dashboard() {
       return true;
     });
   }, [requests, selectedLocation, selectedVehicle, selectedDriver, user]);
+
+  const visibleEmpRequests = useMemo(() => {
+    return filteredRequests.filter(req => req.logType === 'employee');
+  }, [filteredRequests]);
+
+  const isAllVisibleEmpSelected = useMemo(() => {
+    if (visibleEmpRequests.length === 0) return false;
+    return visibleEmpRequests.every(req => selectedRequestIds.includes(req.id));
+  }, [visibleEmpRequests, selectedRequestIds]);
+
+  const handleSendEmail = async () => {
+    if (selectedRequestIds.length === 0) return;
+    if (!toEmail.trim()) {
+      toast.error("Please enter at least one recipient email in the 'To' field.");
+      return;
+    }
+
+    const selectedRecords = filteredRequests.filter(
+      req => req.logType === 'employee' && selectedRequestIds.includes(req.id)
+    );
+
+    if (selectedRecords.length === 0) {
+      toast.error("No valid employee requests selected");
+      return;
+    }
+
+    setSubmittingEmail(true);
+    try {
+      await employeeService.submitEmailLogs(selectedRecords, toEmail.trim(), ccEmail.trim());
+      toast.success("Email logs submitted successfully!");
+      setSelectedRequestIds([]);
+      setIsEmailModalOpen(false);
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Failed to submit email logs");
+    } finally {
+      setSubmittingEmail(false);
+    }
+  };
 
   const activeMetrics = useMemo(() => {
     const list = user?.role === 'ADMIN' ? filteredRequests : requests;
@@ -851,35 +656,11 @@ export default function Dashboard() {
         !isFilterActive ? (
           /* Unfiltered View: Accordion style grouped by Vehicle */
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-slate-800 font-sans">Vehicle Grouped Summaries</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Tap on any vehicle to view individual record logs</p>
               </div>
-              <button
-                onClick={generateWeeklyReportPdf}
-                disabled={generatingPdf}
-                className={`inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                  generatingPdf
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
-                }`}
-              >
-                {generatingPdf ? (
-                  <>
-                    <svg className="animate-spin h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating PDF...
-                  </>
-                ) : (
-                  <>
-                    <FileText size={14} />
-                    Download Weekly PDF
-                  </>
-                )}
-              </button>
             </div>
 
             
@@ -1121,13 +902,39 @@ export default function Dashboard() {
         ) : (
           /* Filtered View: Detailed Flat Records Log */
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+            <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-800 font-sans">Filtered Records Log</h3>
+              {selectedRequestIds.length > 0 && (
+                <button
+                  onClick={() => {
+                    setToEmail('');
+                    setCcEmail('');
+                    setIsEmailModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 shadow-sm"
+                >
+                  Send Email ({selectedRequestIds.length})
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 font-bold text-slate-400 uppercase bg-slate-50/70">
+                    <th className="px-4 py-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllVisibleEmpSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequestIds(visibleEmpRequests.map(r => r.id));
+                          } else {
+                            setSelectedRequestIds([]);
+                          }
+                        }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                      />
+                    </th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Location</th>
                     <th className="px-4 py-3 font-mono">Vehicle</th>
@@ -1147,7 +954,7 @@ export default function Dashboard() {
                 <tbody className="divide-y divide-slate-100 text-slate-600">
                   {filteredRequests.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={15} className="px-4 py-8 text-center text-slate-400">
                         No requests match the selected filters.
                       </td>
                     </tr>
@@ -1157,6 +964,25 @@ export default function Dashboard() {
                       const recStats = getSingleRecordMetrics(req);
                       return (
                         <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 w-10 text-center">
+                            {req.logType === 'employee' ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedRequestIds.includes(req.id)}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setSelectedRequestIds(prev => 
+                                    checked 
+                                      ? [...prev, req.id] 
+                                      : prev.filter(id => id !== req.id)
+                                  );
+                                }}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                              />
+                            ) : (
+                              <span className="text-slate-300 font-sans">—</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">{formatDate(req.fillingDate || req.requestDate)}</td>
                           <td className="px-4 py-3 font-medium">{locText}</td>
                           <td className="px-4 py-3 font-bold text-indigo-600 font-mono tracking-wider">{req.vehicleNo}</td>
@@ -1355,6 +1181,115 @@ export default function Dashboard() {
           onClose={() => setIsOfficeRequestModalOpen(false)}
           onRefresh={fetchDashboardData}
         />
+      )}
+
+      {/* Email Submission Modal */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 border border-slate-100 transform scale-100 transition-all duration-300">
+            <h3 className="text-base font-bold text-slate-800 mb-2 font-sans">Send Email Logs</h3>
+            <p className="text-xs text-slate-400 mb-6">
+              You are sending {selectedRequestIds.length} selected employee log record{selectedRequestIds.length > 1 ? 's' : ''} to the spreadsheet.
+            </p>
+
+            <div className="space-y-4">
+              {/* TO Field */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  To (Recipient Email Address)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={toEmail}
+                    onChange={(e) => setToEmail(e.target.value)}
+                    placeholder="Enter emails (comma separated)"
+                    className="flex-1 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setToEmail(prev => appendEmailToList(prev, e.target.value));
+                      }
+                    }}
+                    className="text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2 cursor-pointer focus:outline-none w-36"
+                  >
+                    <option value="">Select email...</option>
+                    {masterEmails.map((email) => (
+                      <option key={email} value={email}>
+                        {email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* CC Field */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  CC (Copy Email Address)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={ccEmail}
+                    onChange={(e) => setCcEmail(e.target.value)}
+                    placeholder="Enter emails (comma separated)"
+                    className="flex-1 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setCcEmail(prev => appendEmailToList(prev, e.target.value));
+                      }
+                    }}
+                    className="text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2 cursor-pointer focus:outline-none w-36"
+                  >
+                    <option value="">Select email...</option>
+                    {masterEmails.map((email) => (
+                      <option key={email} value={email}>
+                        {email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setIsEmailModalOpen(false)}
+                className="text-xs text-slate-500 hover:text-slate-700 font-bold px-4 py-2"
+                disabled={submittingEmail}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmail}
+                disabled={submittingEmail || !toEmail.trim()}
+                className={`inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                  submittingEmail || !toEmail.trim()
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
+                }`}
+              >
+                {submittingEmail ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  'Send Email'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

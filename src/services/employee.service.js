@@ -467,5 +467,91 @@ export const employeeService = {
       console.error("Error fetching employees and departments from sheet:", error);
       return [];
     }
+  },
+
+  getEmailsFromSheet: async () => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) return [];
+    try {
+      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Master&headerRow=1&_t=${Date.now()}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const resJson = await response.json();
+      if (!resJson.success) throw new Error(resJson.error || "Failed to fetch emails");
+      
+      if (!resJson.data || resJson.data.length <= 1) {
+        return [];
+      }
+
+      const rows = resJson.data.slice(1);
+      // Col L is index 11 (0-based)
+      const emails = rows
+        .map(row => (row[11] || '').toString().trim())
+        .filter(email => email !== '' && email.includes('@'));
+      
+      return Array.from(new Set(emails));
+    } catch (error) {
+      console.error("Error fetching emails from sheet:", error);
+      return [];
+    }
+  },
+
+  submitEmailLogs: async (records, toEmail, ccEmail) => {
+    const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+    if (!APPS_SCRIPT_URL) {
+      throw new Error("Apps Script URL is missing in environment variables");
+    }
+
+    // 1. Fetch current Email-Logs sheet to find next available row (starting at row 2 onwards)
+    const readResponse = await fetch(`${APPS_SCRIPT_URL}?sheet=Email-Logs&_t=${Date.now()}`);
+    if (!readResponse.ok) throw new Error("Failed to connect to spreadsheet");
+    const readJson = await readResponse.json();
+    if (!readJson.success) throw new Error(readJson.error || "Failed to read Email-Logs sheet");
+
+    const nextRowIndex = readJson.data ? readJson.data.length + 1 : 2;
+
+    // 2. Prepare 2D array of data: [Timestamp, Sequence-No., Date, Approved By, Start-Reading, End-Reading, Distance, To, CC]
+    const now = new Date();
+    const pad = (num) => String(num).padStart(2, '0');
+    const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const values2D = records.map(req => [
+      formattedTimestamp,                                                              // Col A: Timestamp
+      '',                                                                              // Col B: Sequence-No. (populated by backend)
+      req.requestDate || req.fillingDate || '',                                        // Col C: Date
+      req.approvedBy || '',                                                            // Col D: Approved By
+      req.lastKmReading !== undefined ? parseFloat(req.lastKmReading) || 0 : 0,         // Col E: Start-Reading
+      req.currentKmReading !== undefined ? parseFloat(req.currentKmReading) || 0 : 0,   // Col F: End-Reading
+      req.distance !== undefined ? parseFloat(req.distance) || 0 : 0,                    // Col G: Distance
+      toEmail || '',                                                                   // Col H: To
+      ccEmail || ''                                                                    // Col I: CC
+    ]);
+
+    // 3. Write data to sheet using updateRange action
+    const bodyParams = new URLSearchParams({
+      action: 'updateRange',
+      sheetName: 'Email-Logs',
+      rowIndex: nextRowIndex.toString(),
+      startColumn: '1',
+      values: JSON.stringify(values2D)
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const resJson = await response.json();
+    if (!resJson.success) {
+      throw new Error(resJson.error || 'Failed to submit email logs to sheet');
+    }
+
+    return resJson;
   }
 };
