@@ -35,10 +35,7 @@ export default function Layout() {
           </div>
         </main>
 
-        {/* Footer: always visible for ADMIN; hidden on mobile for USER (bottom nav bar replaces it) */}
-        <div className={user?.role === 'USER' ? 'hidden lg:block' : ''}>
-          <Footer />
-        </div>
+        <Footer />
 
         {/* Bottom fixed navigation bar for USER role on mobile */}
         {user?.role === 'USER' && (

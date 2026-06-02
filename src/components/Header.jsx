@@ -1,3 +1,4 @@
+import { Bell, Menu } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
@@ -68,8 +69,14 @@ const Header = ({ onMenuClick, user }) => {
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
       <div className="flex justify-between items-center py-2.5 px-4 sm:px-6 min-h-[3.5rem]">
 
-        {/* Left: Page Title */}
+        {/* Left: Mobile hamburger */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-lg transition-colors"
+          >
+            <Menu size={20} />
+          </button>
           <div className="block">
             <h1 className="text-base sm:text-xl font-bold text-slate-800 tracking-tight leading-tight">
               {getStageHeader().title}
@@ -79,6 +86,13 @@ const Header = ({ onMenuClick, user }) => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          {/* Notification bell */}
+          <button className="relative p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+            <Bell size={18} />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-rose-500 rounded-full" />
+          </button>
+
+          <div className="w-px h-6 bg-slate-200 mx-1" />
 
           {/* Profile */}
           <div className="flex items-center gap-2.5 group cursor-pointer" onClick={handleLogout} title="Click to sign out">
