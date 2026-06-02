@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { User, Lock, Fingerprint, RefreshCw } from 'lucide-react';
+import { User, Lock, Fingerprint, RefreshCw, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { userService } from '../../services/user.service';
 
 export default function Profile() {
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [name, setName] = useState(user?.name || '');
   const [userId, setUserId] = useState(user?.id || '');
   const [password, setPassword] = useState(user?.password || '');
@@ -72,8 +74,13 @@ export default function Profile() {
     "block w-full text-sm bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all disabled:bg-slate-100/80 disabled:text-slate-500 disabled:cursor-not-allowed";
   const labelCls = "text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1";
 
+  const handleSignOut = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
-    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pt-2">
+    <div className="space-y-6 pt-2">
       <div className="max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 flex-shrink-0">
         
         {/* Left Side: Profile Summary */}
@@ -141,7 +148,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
               type="submit"
               disabled={submitting}
@@ -155,6 +162,16 @@ export default function Profile() {
               ) : (
                 'Save Changes'
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={submitting}
+              className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-2.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+            >
+              <LogOut size={14} />
+              Sign Out
             </button>
           </div>
         </form>

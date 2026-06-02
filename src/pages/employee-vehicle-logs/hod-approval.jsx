@@ -275,7 +275,48 @@ export default function EmployeeApproval() {
     <div className="space-y-6">
       {/* Tabs and search bar and action buttons row */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-px">
-        <div className="flex gap-6">
+        {/* Mobile glass-card tabs */}
+        <div className="flex md:hidden w-full bg-white/70 backdrop-blur-md border border-slate-200/80 shadow-sm rounded-2xl p-1 gap-1">
+          <button
+            onClick={() => { setActiveTab('pending'); setSelectedRowIndexes(new Set()); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-bold transition-all ${
+              activeTab === 'pending'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            <Clock size={15} />
+            Pending
+            {logs.length > 0 && (
+              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                activeTab === 'pending' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {logs.filter(l => l.planned1 !== '' && l.actual1 === '').length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => { setActiveTab('history'); setSelectedRowIndexes(new Set()); }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-sm font-bold transition-all ${
+              activeTab === 'history'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            <CheckCircle size={15} />
+            History
+            {logs.length > 0 && (
+              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-bold ${
+                activeTab === 'history' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {logs.filter(l => l.planned1 !== '' && l.actual1 !== '').length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Desktop underline tabs */}
+        <div className="hidden md:flex gap-6">
           <button
             onClick={() => { setActiveTab('pending'); setSelectedRowIndexes(new Set()); }}
             className={`pb-3 text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${

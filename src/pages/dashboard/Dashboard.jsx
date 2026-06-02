@@ -440,7 +440,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6 flex-1 flex flex-col min-h-0 overflow-y-auto pr-1 pt-2">
+    <div className="space-y-6 pb-4 pt-2">
 
       {/* Filters Section (Admin Only) */}
       {user?.role === 'ADMIN' && (
@@ -582,162 +582,242 @@ export default function Dashboard() {
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
             <div className="px-5 py-4 border-b border-slate-100 bg-white flex-shrink-0">
               <h3 className="text-sm font-bold text-slate-800 font-sans">Vehicle Grouped Summaries</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Click on any vehicle row to view individual record logs downwards</p>
+              <p className="text-xs text-slate-400 mt-0.5">Tap on any vehicle to view individual record logs</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs font-bold text-slate-400 uppercase bg-slate-50/70">
-                    <th className="px-5 py-3.5">Vehicle Number</th>
-                    <th className="px-5 py-3.5">Expected Avg.</th>
-                    <th className="px-5 py-3.5">Actual Avg.</th>
-                    <th className="px-5 py-3.5">No. of Logs</th>
-                    <th className="px-5 py-3.5">Total Qty / Distance</th>
-                    <th className="px-5 py-3.5">Total Expense</th>
-                    <th className="px-5 py-3.5">Mileage Diff</th>
-                    <th className="px-5 py-3.5"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {groupedData.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-400">
-                        No vehicle summaries log found.
-                      </td>
-                    </tr>
-                  ) : (
-                    groupedData.map((vehicle) => {
-                      const isExpanded = !!expandedVehicles[vehicle.vehicleNo];
-                      return (
-                        <Fragment key={vehicle.vehicleNo}>
-                          {/* Parent Group Row */}
-                          <tr
-                            onClick={() => toggleVehicle(vehicle.vehicleNo)}
-                            className="hover:bg-slate-50/70 transition-colors cursor-pointer"
-                          >
-                            <td className="px-5 py-4 text-sm font-extrabold text-indigo-600 font-mono tracking-wider">
-                              {vehicle.vehicleNo}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-medium text-slate-500">
-                              {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—')}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-bold text-emerald-600">
-                              {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—')}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-medium text-slate-700">
-                              {vehicle.fillingsCount}
-                            </td>
-                            <td className="px-5 py-4 text-sm text-slate-600">
-                              {vehicle.vehicleNo === 'Personal' ? `${vehicle.totalDistance.toLocaleString()} KM` : `${vehicle.totalQty.toLocaleString()} L`}
-                            </td>
-                            <td className="px-5 py-4 text-sm font-semibold text-slate-800">
-                              {formatCurrency(vehicle.totalExpense)}
-                            </td>
-                            <td
-                              className={`px-5 py-4 text-sm font-bold ${
-                                vehicle.vehicleNo === 'Personal'
-                                  ? 'text-slate-500'
-                                  : vehicle.mileageDiff > 0
-                                  ? 'text-emerald-600'
-                                  : vehicle.mileageDiff < 0
-                                  ? 'text-rose-500'
-                                  : 'text-slate-500'
-                              }`}
-                            >
-                              {vehicle.vehicleNo === 'Personal'
-                                ? '—'
-                                : (vehicle.mileageDiff !== 0
-                                  ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L`
-                                  : '0.00 KM/L')}
-                            </td>
-                            <td className="px-5 py-4 text-slate-400">
-                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                            </td>
-                          </tr>
 
-                          {/* Nested Accordion Details */}
-                          {isExpanded && (
-                            <tr className="bg-slate-50/40">
-                              <td colSpan={8} className="p-0 border-t border-slate-100">
-                                <div className="px-6 py-4 bg-slate-50/50">
-                                  <div className="border border-slate-200 rounded-xl bg-white shadow-inner overflow-hidden">
-                                    <table className="w-full text-left border-collapse text-xs">
-                                      <thead>
-                                        <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase">
-                                          <th className="px-4 py-2.5 font-mono">Req/Slip No</th>
-                                          <th className="px-4 py-2.5">Date</th>
-                                          <th className="px-4 py-2.5">Driver / Employee</th>
-                                          <th className="px-4 py-2.5">Location</th>
-                                          <th className="px-4 py-2.5">{vehicle.vehicleNo === 'Personal' ? 'Distance (KM)' : 'Qty (L)'}</th>
-                                          <th className="px-4 py-2.5">Expense</th>
-                                          <th className="px-4 py-2.5 text-right">KM Readings</th>
-                                          <th className="px-4 py-2.5">Bill / Proof</th>
-                                          <th className="px-4 py-2.5">Status</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100 text-slate-600">
-                                        {vehicle.records.map((rec) => {
-                                          const locText = formatLocationText(rec.location, rec.customLocation);
-                                          return (
-                                            <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
-                                              <td className="px-4 py-2 font-bold font-mono text-slate-800">
-                                                {rec.slipNo || rec.requestNo}
-                                              </td>
-                                              <td className="px-4 py-2">
-                                                {formatDate(rec.fillingDate || rec.requestDate)}
-                                              </td>
-                                              <td className="px-4 py-2 font-semibold text-slate-700">
-                                                {rec.issuedTo}
-                                              </td>
-                                              <td className="px-4 py-2">{locText}</td>
-                                              <td className="px-4 py-2">
-                                                {vehicle.vehicleNo === 'Personal' 
-                                                  ? (rec.distance ? `${rec.distance} KM` : (rec.qty ? `${rec.qty} KM` : '—')) 
-                                                  : (rec.qty ? `${rec.qty} L` : '—')
-                                                }
-                                              </td>
-                                              <td className="px-4 py-2">
-                                                {rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}
-                                              </td>
-                                              <td className="px-4 py-2 text-right">
-                                                <div className="text-[10px] text-slate-400">
-                                                  {vehicle.vehicleNo === 'Personal' ? 'Start' : 'Last'}: {rec.lastKmReading} KM
-                                                </div>
-                                                <div className="text-[10px] font-bold text-indigo-500">
-                                                  {vehicle.vehicleNo === 'Personal' ? 'End' : 'Fill'}: {rec.currentKmReading || '—'} KM
-                                                </div>
-                                              </td>
-                                              <td className="px-4 py-2">
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSelectedSlipRequest(rec);
-                                                  }}
-                                                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
-                                                >
-                                                  View
-                                                </button>
-                                              </td>
-                                              <td className="px-4 py-2">
-                                                <StatusTag status={rec.status} />
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
+            {groupedData.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-slate-400">No vehicle summaries log found.</div>
+            ) : (
+              <>
+                {/* ── Mobile card list (visible only on small screens) ── */}
+                <div className="block md:hidden divide-y divide-slate-100">
+                  {groupedData.map((vehicle) => {
+                    const isExpanded = !!expandedVehicles[vehicle.vehicleNo];
+                    return (
+                      <div key={vehicle.vehicleNo}>
+                        {/* Summary card */}
+                        <div
+                          onClick={() => toggleVehicle(vehicle.vehicleNo)}
+                          className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-extrabold text-indigo-600 font-mono tracking-wider truncate">{vehicle.vehicleNo}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                              <span className="text-[11px] text-slate-500">Logs: <span className="font-bold text-slate-700">{vehicle.fillingsCount}</span></span>
+                              <span className="text-[11px] text-slate-500">
+                                {vehicle.vehicleNo === 'Personal' ? `${vehicle.totalDistance.toLocaleString()} KM` : `${vehicle.totalQty.toLocaleString()} L`}
+                              </span>
+                              <span className="text-[11px] text-slate-500">{formatCurrency(vehicle.totalExpense)}</span>
+                            </div>
+                            {vehicle.vehicleNo !== 'Personal' && (
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                <span className="text-[11px] text-slate-400">Exp: {vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—'}</span>
+                                <span className="text-[11px] text-emerald-600 font-semibold">Act: {vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—'}</span>
+                                <span className={`text-[11px] font-bold ${vehicle.mileageDiff > 0 ? 'text-emerald-600' : vehicle.mileageDiff < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                                  {vehicle.mileageDiff !== 0 ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L` : '0.00 KM/L'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="ml-2 text-slate-400 flex-shrink-0">
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </span>
+                        </div>
+
+                        {/* Expanded mobile records */}
+                        {isExpanded && (
+                          <div className="bg-slate-50/60 border-t border-slate-100 px-3 py-2 space-y-2">
+                            {vehicle.records.map((rec) => {
+                              const locText = formatLocationText(rec.location, rec.customLocation);
+                              return (
+                                <div key={rec.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                                  <div className="flex items-start justify-between gap-2 mb-2">
+                                    <span className="text-xs font-bold font-mono text-slate-800">{rec.slipNo || rec.requestNo}</span>
+                                    <StatusTag status={rec.status} />
                                   </div>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                                    <div><span className="text-slate-400 font-semibold">Date: </span><span className="text-slate-700">{formatDate(rec.fillingDate || rec.requestDate)}</span></div>
+                                    <div><span className="text-slate-400 font-semibold">Driver: </span><span className="text-slate-700">{rec.issuedTo}</span></div>
+                                    <div><span className="text-slate-400 font-semibold">Location: </span><span className="text-slate-700">{locText}</span></div>
+                                    <div>
+                                      <span className="text-slate-400 font-semibold">{vehicle.vehicleNo === 'Personal' ? 'Dist: ' : 'Qty: '}</span>
+                                      <span className="text-slate-700">
+                                        {vehicle.vehicleNo === 'Personal'
+                                          ? (rec.distance ? `${rec.distance} KM` : (rec.qty ? `${rec.qty} KM` : '—'))
+                                          : (rec.qty ? `${rec.qty} L` : '—')}
+                                      </span>
+                                    </div>
+                                    <div><span className="text-slate-400 font-semibold">Expense: </span><span className="text-slate-700 font-bold">{rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}</span></div>
+                                    <div>
+                                      <span className="text-slate-400 font-semibold">{vehicle.vehicleNo === 'Personal' ? 'Start/End: ' : 'Last/Fill: '}</span>
+                                      <span className="text-indigo-600 font-bold">{rec.lastKmReading} / {rec.currentKmReading || '—'} KM</span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setSelectedSlipRequest(rec); }}
+                                    className="mt-2 text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
+                                  >
+                                    View Bill / Proof
+                                  </button>
                                 </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* ── Desktop table (visible md and above) ── */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xs font-bold text-slate-400 uppercase bg-slate-50/70">
+                        <th className="px-5 py-3.5">Vehicle Number</th>
+                        <th className="px-5 py-3.5">Expected Avg.</th>
+                        <th className="px-5 py-3.5">Actual Avg.</th>
+                        <th className="px-5 py-3.5">No. of Logs</th>
+                        <th className="px-5 py-3.5">Total Qty / Distance</th>
+                        <th className="px-5 py-3.5">Total Expense</th>
+                        <th className="px-5 py-3.5">Mileage Diff</th>
+                        <th className="px-5 py-3.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {groupedData.map((vehicle) => {
+                        const isExpanded = !!expandedVehicles[vehicle.vehicleNo];
+                        return (
+                          <Fragment key={vehicle.vehicleNo}>
+                            {/* Parent Group Row */}
+                            <tr
+                              onClick={() => toggleVehicle(vehicle.vehicleNo)}
+                              className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                            >
+                              <td className="px-5 py-4 text-sm font-extrabold text-indigo-600 font-mono tracking-wider">
+                                {vehicle.vehicleNo}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-medium text-slate-500">
+                                {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.expectedAvg ? `${vehicle.expectedAvg.toFixed(1)} KM/L` : '—')}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-bold text-emerald-600">
+                                {vehicle.vehicleNo === 'Personal' ? '—' : (vehicle.actualAvg ? `${vehicle.actualAvg} KM/L` : '—')}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                                {vehicle.fillingsCount}
+                              </td>
+                              <td className="px-5 py-4 text-sm text-slate-600">
+                                {vehicle.vehicleNo === 'Personal' ? `${vehicle.totalDistance.toLocaleString()} KM` : `${vehicle.totalQty.toLocaleString()} L`}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-semibold text-slate-800">
+                                {formatCurrency(vehicle.totalExpense)}
+                              </td>
+                              <td
+                                className={`px-5 py-4 text-sm font-bold ${
+                                  vehicle.vehicleNo === 'Personal'
+                                    ? 'text-slate-500'
+                                    : vehicle.mileageDiff > 0
+                                    ? 'text-emerald-600'
+                                    : vehicle.mileageDiff < 0
+                                    ? 'text-rose-500'
+                                    : 'text-slate-500'
+                                }`}
+                              >
+                                {vehicle.vehicleNo === 'Personal'
+                                  ? '—'
+                                  : (vehicle.mileageDiff !== 0
+                                    ? `${vehicle.mileageDiff > 0 ? '+' : ''}${vehicle.mileageDiff.toFixed(2)} KM/L`
+                                    : '0.00 KM/L')}
+                              </td>
+                              <td className="px-5 py-4 text-slate-400">
+                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                               </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+
+                            {/* Nested Accordion Details */}
+                            {isExpanded && (
+                              <tr className="bg-slate-50/40">
+                                <td colSpan={8} className="p-0 border-t border-slate-100">
+                                  <div className="px-6 py-4 bg-slate-50/50">
+                                    <div className="border border-slate-200 rounded-xl bg-white shadow-inner overflow-hidden">
+                                      <table className="w-full text-left border-collapse text-xs">
+                                        <thead>
+                                          <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-extrabold text-slate-400 uppercase">
+                                            <th className="px-4 py-2.5 font-mono">Req/Slip No</th>
+                                            <th className="px-4 py-2.5">Date</th>
+                                            <th className="px-4 py-2.5">Driver / Employee</th>
+                                            <th className="px-4 py-2.5">Location</th>
+                                            <th className="px-4 py-2.5">{vehicle.vehicleNo === 'Personal' ? 'Distance (KM)' : 'Qty (L)'}</th>
+                                            <th className="px-4 py-2.5">Expense</th>
+                                            <th className="px-4 py-2.5 text-right">KM Readings</th>
+                                            <th className="px-4 py-2.5">Bill / Proof</th>
+                                            <th className="px-4 py-2.5">Status</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-slate-600">
+                                          {vehicle.records.map((rec) => {
+                                            const locText = formatLocationText(rec.location, rec.customLocation);
+                                            return (
+                                              <tr key={rec.id} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-2 font-bold font-mono text-slate-800">
+                                                  {rec.slipNo || rec.requestNo}
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  {formatDate(rec.fillingDate || rec.requestDate)}
+                                                </td>
+                                                <td className="px-4 py-2 font-semibold text-slate-700">
+                                                  {rec.issuedTo}
+                                                </td>
+                                                <td className="px-4 py-2">{locText}</td>
+                                                <td className="px-4 py-2">
+                                                  {vehicle.vehicleNo === 'Personal' 
+                                                    ? (rec.distance ? `${rec.distance} KM` : (rec.qty ? `${rec.qty} KM` : '—')) 
+                                                    : (rec.qty ? `${rec.qty} L` : '—')
+                                                  }
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  {rec.totalAmount ? formatCurrency(rec.totalAmount) : '—'}
+                                                </td>
+                                                <td className="px-4 py-2 text-right">
+                                                  <div className="text-[10px] text-slate-400">
+                                                    {vehicle.vehicleNo === 'Personal' ? 'Start' : 'Last'}: {rec.lastKmReading} KM
+                                                  </div>
+                                                  <div className="text-[10px] font-bold text-indigo-500">
+                                                    {vehicle.vehicleNo === 'Personal' ? 'End' : 'Fill'}: {rec.currentKmReading || '—'} KM
+                                                  </div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedSlipRequest(rec);
+                                                    }}
+                                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
+                                                  >
+                                                    View
+                                                  </button>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  <StatusTag status={rec.status} />
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           /* Filtered View: Detailed Flat Records Log */
