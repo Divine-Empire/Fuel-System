@@ -348,24 +348,39 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
       let proofStartUrl = editRecord?.proofStart || '';
       let proofEndUrl = editRecord?.proofEnd || '';
 
-      if (!isProcessMode) {
-        setSubmissionStep("Uploading start journey proof...");
-        const startBase64 = await fileToBase64(proofStartFile);
-        proofStartUrl = await employeeService.uploadFileToDrive(
-          startBase64, 
-          `START_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
-          proofStartFile.type
-        );
+      // Upload proofs in parallel if both need to be uploaded
+      setSubmissionStep("Uploading proofs...");
+
+      const uploadPromises = [];
+      let uploadStartIdx = -1;
+      let uploadEndIdx = -1;
+
+      if (!isProcessMode && proofStartFile) {
+        uploadStartIdx = uploadPromises.push((async () => {
+          const startBase64 = await fileToBase64(proofStartFile);
+          return await employeeService.uploadFileToDrive(
+            startBase64, 
+            `START_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
+            proofStartFile.type
+          );
+        })()) - 1;
       }
 
       if (hasEndDetails && proofEndFile) {
-        setSubmissionStep("Uploading end journey proof...");
-        const endBase64 = await fileToBase64(proofEndFile);
-        proofEndUrl = await employeeService.uploadFileToDrive(
-          endBase64, 
-          `END_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
-          proofEndFile.type
-        );
+        uploadEndIdx = uploadPromises.push((async () => {
+          const endBase64 = await fileToBase64(proofEndFile);
+          return await employeeService.uploadFileToDrive(
+            endBase64, 
+            `END_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
+            proofEndFile.type
+          );
+        })()) - 1;
+      }
+
+      if (uploadPromises.length > 0) {
+        const uploadResults = await Promise.all(uploadPromises);
+        if (uploadStartIdx !== -1) proofStartUrl = uploadResults[uploadStartIdx];
+        if (uploadEndIdx !== -1) proofEndUrl = uploadResults[uploadEndIdx];
       }
 
       const distanceVal = kmReadingStart && kmReadingEnd ? parseFloat(kmReadingEnd) - parseFloat(kmReadingStart) : 0;

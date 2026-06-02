@@ -65,6 +65,54 @@ const updateMultipleCells = async (sheetName, updatesList) => {
   return { success: true };
 };
 
+const updateCellRange = async (sheetName, rowIndex, startColumn, values2D) => {
+  const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!APPS_SCRIPT_URL) {
+    throw new Error("Apps Script URL is missing in environment variables");
+  }
+
+  try {
+    const bodyParams = new URLSearchParams({
+      action: 'updateRange',
+      sheetName: sheetName,
+      rowIndex: rowIndex.toString(),
+      startColumn: startColumn.toString(),
+      values: JSON.stringify(values2D)
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (response.ok) {
+      const resJson = await response.json();
+      if (resJson.success) {
+        return { success: true };
+      }
+    }
+  } catch (error) {
+    console.warn("Batch updateRange failed, falling back to individual cell updates:", error);
+  }
+
+  // Fallback: construct updates list and use updateMultipleCells
+  const updatesList = [];
+  values2D.forEach((rowValues) => {
+    rowValues.forEach((val, colOffset) => {
+      updatesList.push({
+        rowIndex,
+        col: startColumn + colOffset,
+        val
+      });
+    });
+  });
+
+  return await updateMultipleCells(sheetName, updatesList);
+};
+
 export const employeeService = {
   getEmployeeRequestsFromSheet: async () => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
@@ -73,7 +121,7 @@ export const employeeService = {
     }
 
     try {
-      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Employee-Logs&headerRow=6&_t=${Date.now()}`);
+      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Employee-Logs&headerRow=7&_t=${Date.now()}`);
       if (!response.ok) throw new Error("Network response was not ok");
       
       const resJson = await response.json();
@@ -91,51 +139,37 @@ export const employeeService = {
         const dateOfVisit = (row[2] || '').toString().trim();
         const department = (row[3] || '').toString().trim();
         const employeeName = (row[4] || '').toString().trim();
-        const startTime = (row[5] || '').toString().trim();
-        const kmReadingStart = parseFloat(row[6]) || 0;
-        const proofStart = (row[7] || '').toString().trim();
-        const endTime = (row[8] || '').toString().trim();
-        const kmReadingEnd = parseFloat(row[9]) || 0;
-        const proofEnd = (row[10] || '').toString().trim();
-        const purposeOfVisit = (row[11] || '').toString().trim();
-        const clientName = (row[12] || '').toString().trim();
-        const siteLocation = (row[13] || '').toString().trim();
-        const machineDetails = (row[14] || '').toString().trim();
-        const journeyOutcome = (row[15] || '').toString().trim();
+        const vehicleType = (row[5] || '').toString().trim() || 'Car';
+        const startTime = (row[6] || '').toString().trim();
+        const kmReadingStart = parseFloat(row[7]) || 0;
+        const proofStart = (row[8] || '').toString().trim();
+        const endTime = (row[9] || '').toString().trim();
+        const kmReadingEnd = parseFloat(row[10]) || 0;
+        const proofEnd = (row[11] || '').toString().trim();
+        const distanceCovered = row[12] !== '' && row[12] !== null && row[12] !== undefined ? parseFloat(row[12]) : 0;
+        const purposeOfVisit = (row[13] || '').toString().trim();
+        const clientName = (row[14] || '').toString().trim();
+        const siteLocation = (row[15] || '').toString().trim();
+        const machineDetails = (row[16] || '').toString().trim();
+        const journeyOutcome = (row[17] || '').toString().trim();
 
-        // Stage 1 columns (Planned1, Actual1, Delay1, Approval by HOD)
-        const planned1 = (row[16] || '').toString().trim();
-        const actual1 = (row[17] || '').toString().trim();
-        const delay1 = (row[18] || '').toString().trim();
-        const approvalByHod = (row[19] || '').toString().trim();
+        // Stage 1 columns (Planned1, Actual1, Delay, Status, Approved By, Remarks)
+        const planned1 = (row[18] || '').toString().trim();
+        const actual1 = (row[19] || '').toString().trim();
+        const delay1 = (row[20] || '').toString().trim();
+        const approvalByHod = (row[21] || '').toString().trim(); // Status
+        const approvedBy = (row[22] || '').toString().trim(); // Approved By
+        const hodRemarks = (row[23] || '').toString().trim(); // Remarks
 
-        // Stage 2 columns (Planned2, Actual2, Delay2, Distance covered, Rate, Calculated Price, Actual-Paid, Remarks, Payment Status)
-        const planned2 = (row[20] || '').toString().trim();
-        const actual2 = (row[21] || '').toString().trim();
-        const delay2 = (row[22] || '').toString().trim();
-        const distanceCovered = row[23] !== '' && row[23] !== null && row[23] !== undefined ? parseFloat(row[23]) : 0;
-        const rate = row[24] !== '' && row[24] !== null && row[24] !== undefined ? parseFloat(row[24]) : 0;
-        const calculatedPrice = row[25] !== '' && row[25] !== null && row[25] !== undefined ? parseFloat(row[25]) : 0;
-        const actualPaid = row[26] !== '' && row[26] !== null && row[26] !== undefined ? parseFloat(row[26]) : 0;
-        const remarks = (row[27] || '').toString().trim();
-        const paymentStatus = (row[28] || 'pending').toString().trim();
-
-        let vehicleType = 'Car';
-        let distance = '';
-        let approvedBy = '';
-        let hodRemarks = '';
-        if (row.length > 30) {
-          vehicleType = (row[29] || '').toString().trim() || 'Car';
-        }
-        if (row.length > 31) {
-          distance = (row[30] || '').toString().trim();
-        }
-        if (row.length > 32) {
-          approvedBy = (row[31] || '').toString().trim();
-        }
-        if (row.length > 33) {
-          hodRemarks = (row[32] || '').toString().trim();
-        }
+        // Stage 2 columns (Planned2, Actual2, Delay2, Rate, Calculated Price, Actual-Paid, Remarks, Payment Status)
+        const planned2 = (row[24] || '').toString().trim();
+        const actual2 = (row[25] || '').toString().trim();
+        const delay2 = (row[26] || '').toString().trim();
+        const rate = row[27] !== '' && row[27] !== null && row[27] !== undefined ? parseFloat(row[27]) : 0;
+        const calculatedPrice = row[28] !== '' && row[28] !== null && row[28] !== undefined ? parseFloat(row[28]) : 0;
+        const actualPaid = row[29] !== '' && row[29] !== null && row[29] !== undefined ? parseFloat(row[29]) : 0;
+        const remarks = (row[30] || '').toString().trim();
+        const paymentStatus = (row[31] || 'pending').toString().trim();
 
         // RowIndex is the last element
         const rowIndex = parseInt(row[row.length - 1]) || null;
@@ -172,7 +206,7 @@ export const employeeService = {
           remarks,
           paymentStatus,
           vehicleType,
-          distance,
+          distance: distanceCovered.toString(),
           approvedBy,
           hodRemarks,
           rowIndex
@@ -223,40 +257,26 @@ export const employeeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    // Columns: A to AE (31 columns)
-    const rowData = [
-      formattedTimestamp,                          // Col A (1): Timestamp
-      '',                                          // Col B (2): Request-No (will be generated by GAS because of generateRequestNo: true)
-      requestData.dateOfVisit || '',               // Col C (3): Date of Visit
-      requestData.department || '',                // Col D (4): Department
-      requestData.employeeName || '',              // Col E (5): Employee-Name
-      requestData.startTime || '',                 // Col F (6): Start-Time
-      parseFloat(requestData.kmReadingStart) || 0, // Col G (7): KM Reading (Start)
-      requestData.proofStart || '',                // Col H (8): Proof (Start)
-      requestData.endTime || '',                   // Col I (9): End-Time
-      (requestData.kmReadingEnd !== '' && requestData.kmReadingEnd !== undefined && requestData.kmReadingEnd !== null) ? parseFloat(requestData.kmReadingEnd) : '',   // Col J (10): KM Reading (End)
-      requestData.proofEnd || '',                  // Col K (11): Proof (End)
-      requestData.purposeOfVisit || '',            // Col L (12): Purpose of Visit
-      requestData.clientName || '',                // Col M (13): Client-Name
-      requestData.siteLocation || '',              // Col N (14): Site-Location
-      requestData.machineDetails || '',            // Col O (15): Machine-Details
-      requestData.journeyOutcome || '',            // Col P (16): Journey Outcome
-      '',                                          // Col Q (17): Planned1
-      '',                                          // Col R (18): Actual1
-      '',                                          // Col S (19): Delay1
-      '',                                          // Col T (20): Approval by HOD
-      '',                                          // Col U (21): Planned2
-      '',                                          // Col V (22): Actual2
-      '',                                          // Col W (23): Delay2
-      '',                                          // Col X (24): Distance covered
-      '',                                          // Col Y (25): Rate
-      '',                                          // Col Z (26): Calculated Price
-      '',                                          // Col AA (27): Actual-Paid
-      '',                                          // Col AB (28): Remarks
-      '',                                          // Col AC (29): Payment Status
-      requestData.vehicleType || 'Car',            // Col AD (30): Vehicle Type
-      requestData.distance !== undefined && requestData.distance !== null ? requestData.distance.toString() : '' // Col AE (31): Calculated Distance (KM)
-    ];
+    // Columns: A to AF (32 columns)
+    const rowData = Array(32).fill('');
+    rowData[0] = formattedTimestamp;                          // Col A (1): Timestamp
+    rowData[1] = '';                                          // Col B (2): Request-No (generated by GAS)
+    rowData[2] = requestData.dateOfVisit || '';               // Col C (3): Date of Visit
+    rowData[3] = requestData.department || '';                // Col D (4): Department
+    rowData[4] = requestData.employeeName || '';              // Col E (5): Employee-Name
+    rowData[5] = requestData.vehicleType || 'Car';            // Col F (6): Vehicle Type
+    rowData[6] = requestData.startTime || '';                 // Col G (7): Start-Time
+    rowData[7] = parseFloat(requestData.kmReadingStart) || 0; // Col H (8): KM Reading (Start)
+    rowData[8] = requestData.proofStart || '';                // Col I (9): Proof (Start)
+    rowData[9] = requestData.endTime || '';                   // Col J (10): End-Time
+    rowData[10] = (requestData.kmReadingEnd !== '' && requestData.kmReadingEnd !== undefined && requestData.kmReadingEnd !== null) ? parseFloat(requestData.kmReadingEnd) : ''; // Col K (11): KM Reading (End)
+    rowData[11] = requestData.proofEnd || '';                 // Col L (12): Proof (End)
+    rowData[12] = requestData.distance !== undefined && requestData.distance !== null ? parseFloat(requestData.distance) || 0 : ''; // Col M (13): Distance Covered
+    rowData[13] = requestData.purposeOfVisit || '';           // Col N (14): Purpose of Visit
+    rowData[14] = requestData.clientName || '';               // Col O (15): Client-Name
+    rowData[15] = requestData.siteLocation || '';             // Col P (16): Site-Location
+    rowData[16] = requestData.machineDetails || '';           // Col Q (17): Machine-Details
+    rowData[17] = requestData.journeyOutcome || '';           // Col R (18): Journey Outcome
 
     const bodyParams = new URLSearchParams({
       action: 'insert',
@@ -297,10 +317,10 @@ export const employeeService = {
 
     // Construct flat list of updates
     const updatesList = rowIndexes.flatMap((rowIndex) => [
-      { rowIndex, col: 18, val: formattedTimestamp },
-      { rowIndex, col: 20, val: 'Approved' },
-      { rowIndex, col: 32, val: approvedBy || '' },
-      { rowIndex, col: 33, val: remarks || '' }
+      { rowIndex, col: 20, val: formattedTimestamp }, // Col T (20): Actual1
+      { rowIndex, col: 22, val: 'Approved' },         // Col V (22): Status
+      { rowIndex, col: 23, val: approvedBy || '' },   // Col W (23): Approved By
+      { rowIndex, col: 24, val: remarks || '' }       // Col X (24): Remarks
     ]);
 
     return await updateMultipleCells('Employee-Logs', updatesList);
@@ -316,33 +336,58 @@ export const employeeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    const updatesList = [
-      { rowIndex, col: 25, val: parseFloat(paymentData.rate).toString() },            // Col Y: Rate
-      { rowIndex, col: 26, val: parseFloat(paymentData.calculatedPrice).toString() },  // Col Z: Calculated Price
-      { rowIndex, col: 27, val: parseFloat(paymentData.actualPaid).toString() },       // Col AA: Actual-Paid
-      { rowIndex, col: 28, val: paymentData.remarks || '' },                          // Col AB: Remarks
-      { rowIndex, col: 29, val: paymentData.paymentStatus }                           // Col AC: Payment Status
+    // Parallelize the actual2 status update (Col 26) and contiguous payment range update (Col 28-32)
+    const statusUpdate = updateMultipleCells('Employee-Logs', [
+      {
+        rowIndex,
+        col: 26, // Col Z (26): Actual2
+        val: paymentData.paymentStatus === 'paid' ? formattedTimestamp : ''
+      }
+    ]);
+
+    const rangeValues = [
+      [
+        parseFloat(paymentData.rate).toString(),
+        parseFloat(paymentData.calculatedPrice).toString(),
+        parseFloat(paymentData.actualPaid).toString(),
+        paymentData.remarks || '',
+        paymentData.paymentStatus
+      ]
     ];
 
-    // Actual2 (Col V / 22): timestamp if status is paid, else empty string
-    if (paymentData.paymentStatus === 'paid') {
-      updatesList.push({ rowIndex, col: 22, val: formattedTimestamp });
-    } else {
-      updatesList.push({ rowIndex, col: 22, val: '' });
-    }
+    const rangeUpdate = updateCellRange('Employee-Logs', rowIndex, 28, rangeValues); // Col AB (28)
 
-    return await updateMultipleCells('Employee-Logs', updatesList);
+    const [resStatus, resRange] = await Promise.all([statusUpdate, rangeUpdate]);
+
+    if (resStatus.success && resRange.success) {
+      return { success: true };
+    }
+    throw new Error("Employee payment processing failed");
   },
 
   completeEmployeeJourneyInSheet: async (rowIndex, journeyData) => {
-    const updatesList = [
-      { rowIndex, col: 9, val: journeyData.endTime || '' },                              // Col I (9): End-Time
-      { rowIndex, col: 10, val: parseFloat(journeyData.kmReadingEnd) || 0 },              // Col J (10): KM Reading (End)
-      { rowIndex, col: 11, val: journeyData.proofEnd || '' },                            // Col K (11): Proof (End)
-      { rowIndex, col: 16, val: journeyData.journeyOutcome || '' },                       // Col P (16): Journey Outcome
-      { rowIndex, col: 31, val: journeyData.distance !== undefined && journeyData.distance !== null ? journeyData.distance.toString() : '' } // Col AE (31): Calculated Distance (KM)
+    // Parallelize the contiguous end-journey range update (Col 10-13) and the non-contiguous fields (Col 18)
+    const rangeValues = [
+      [
+        journeyData.endTime || '',
+        parseFloat(journeyData.kmReadingEnd) || 0,
+        journeyData.proofEnd || '',
+        journeyData.distance !== undefined && journeyData.distance !== null ? journeyData.distance.toString() : ''
+      ]
     ];
-    return await updateMultipleCells('Employee-Logs', updatesList);
+
+    const rangeUpdate = updateCellRange('Employee-Logs', rowIndex, 10, rangeValues); // Col J (10)
+
+    const otherFieldsUpdate = updateMultipleCells('Employee-Logs', [
+      { rowIndex, col: 18, val: journeyData.journeyOutcome || '' } // Col R (18): Journey Outcome
+    ]);
+
+    const [resRange, resOther] = await Promise.all([rangeUpdate, otherFieldsUpdate]);
+
+    if (resRange.success && resOther.success) {
+      return { success: true };
+    }
+    throw new Error("Employee journey completion failed");
   },
 
   getEmployeesFromSheet: async () => {

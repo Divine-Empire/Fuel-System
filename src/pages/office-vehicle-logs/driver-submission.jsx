@@ -268,45 +268,42 @@ export default function OfficeActualFilling() {
     if (!fuelMachineAfterFile) return toast.error("Dispenser After Photo is required");
 
     setSubmittingFilling(true);
+    setSubmissionStep("Uploading photos...");
 
     try {
-      // Step 1: Upload photoOfReading
-      setSubmissionStep("Uploading odometer photo...");
-      const base64Reading = await fileToBase64(photoOfReadingFile);
-      const photoOfReadingUrl = await officeService.uploadFileToDrive(
-        base64Reading, 
-        `odometer_office_${selectedLogForFilling.requestNo}.png`, 
-        photoOfReadingFile.type
-      );
+      // Convert all 4 files to base64 in parallel
+      const [base64Reading, base64Bill, base64Before, base64After] = await Promise.all([
+        fileToBase64(photoOfReadingFile),
+        fileToBase64(fuelBillPhotoFile),
+        fileToBase64(fuelMachineBeforeStartFile),
+        fileToBase64(fuelMachineAfterFile),
+      ]);
 
-      // Step 2: Upload fuelBillPhoto
-      setSubmissionStep("Uploading fuel bill photo...");
-      const base64Bill = await fileToBase64(fuelBillPhotoFile);
-      const fuelBillPhotoUrl = await officeService.uploadFileToDrive(
-        base64Bill, 
-        `fuel_bill_office_${selectedLogForFilling.requestNo}.png`, 
-        fuelBillPhotoFile.type
-      );
+      // Upload all 4 photos in parallel (4x faster than sequential)
+      const [photoOfReadingUrl, fuelBillPhotoUrl, fuelMachineBeforeStartUrl, fuelMachineAfterUrl] = await Promise.all([
+        officeService.uploadFileToDrive(
+          base64Reading,
+          `odometer_office_${selectedLogForFilling.requestNo}.png`,
+          photoOfReadingFile.type
+        ),
+        officeService.uploadFileToDrive(
+          base64Bill,
+          `fuel_bill_office_${selectedLogForFilling.requestNo}.png`,
+          fuelBillPhotoFile.type
+        ),
+        officeService.uploadFileToDrive(
+          base64Before,
+          `dispenser_before_office_${selectedLogForFilling.requestNo}.png`,
+          fuelMachineBeforeStartFile.type
+        ),
+        officeService.uploadFileToDrive(
+          base64After,
+          `dispenser_after_office_${selectedLogForFilling.requestNo}.png`,
+          fuelMachineAfterFile.type
+        ),
+      ]);
 
-      // Step 3: Upload fuelMachineBeforeStart
-      setSubmissionStep("Uploading dispenser before photo...");
-      const base64Before = await fileToBase64(fuelMachineBeforeStartFile);
-      const fuelMachineBeforeStartUrl = await officeService.uploadFileToDrive(
-        base64Before, 
-        `dispenser_before_office_${selectedLogForFilling.requestNo}.png`, 
-        fuelMachineBeforeStartFile.type
-      );
-
-      // Step 4: Upload fuelMachineAfter
-      setSubmissionStep("Uploading dispenser after photo...");
-      const base64After = await fileToBase64(fuelMachineAfterFile);
-      const fuelMachineAfterUrl = await officeService.uploadFileToDrive(
-        base64After, 
-        `dispenser_after_office_${selectedLogForFilling.requestNo}.png`, 
-        fuelMachineAfterFile.type
-      );
-
-      // Step 5: Save to Sheet
+      // Save to Sheet after all uploads complete
       setSubmissionStep("Saving details to spreadsheet...");
       await officeService.processActualFillingToSheet(selectedLogForFilling.rowIndex, {
         dateOfFilling,

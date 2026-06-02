@@ -65,6 +65,54 @@ const updateMultipleCells = async (sheetName, updatesList) => {
   return { success: true };
 };
 
+const updateCellRange = async (sheetName, rowIndex, startColumn, values2D) => {
+  const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
+  if (!APPS_SCRIPT_URL) {
+    throw new Error("Apps Script URL is missing in environment variables");
+  }
+
+  try {
+    const bodyParams = new URLSearchParams({
+      action: 'updateRange',
+      sheetName: sheetName,
+      rowIndex: rowIndex.toString(),
+      startColumn: startColumn.toString(),
+      values: JSON.stringify(values2D)
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (response.ok) {
+      const resJson = await response.json();
+      if (resJson.success) {
+        return { success: true };
+      }
+    }
+  } catch (error) {
+    console.warn("Batch updateRange failed, falling back to individual cell updates:", error);
+  }
+
+  // Fallback: construct updates list and use updateMultipleCells
+  const updatesList = [];
+  values2D.forEach((rowValues) => {
+    rowValues.forEach((val, colOffset) => {
+      updatesList.push({
+        rowIndex,
+        col: startColumn + colOffset,
+        val
+      });
+    });
+  });
+
+  return await updateMultipleCells(sheetName, updatesList);
+};
+
 export const officeService = {
   getOfficeRequestsFromSheet: async () => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
@@ -73,7 +121,7 @@ export const officeService = {
     }
 
     try {
-      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Office-Logs&headerRow=6&_t=${Date.now()}`);
+      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Office-Logs&headerRow=7&_t=${Date.now()}`);
       if (!response.ok) throw new Error("Network response was not ok");
       
       const resJson = await response.json();
@@ -96,22 +144,22 @@ export const officeService = {
         const delay = (row[7] || '').toString().trim();
         const modeOfAdvanceAmt = (row[8] || '').toString().trim();
         const advancePaid = parseFloat(row[9]) || 0;
-        const plannedDriver = (row[10] || '').toString().trim();
-        const actualDriver = (row[11] || '').toString().trim();
-        const delayDriver = (row[12] || '').toString().trim();
-        const dateOfFilling = (row[13] || '').toString().trim();
-        const lastKmReading = parseFloat(row[14]) || 0;
-        const currentKmReading = parseFloat(row[15]) || 0;
-        const photoOfReading = (row[16] || '').toString().trim();
-        const qty = parseFloat(row[17]) || 0;
-        const rate = parseFloat(row[18]) || 0;
-        const calculatedPrice = parseFloat(row[19]) || 0;
-        const fuelBillPhoto = (row[20] || '').toString().trim();
-        const fuelMachineBeforeStart = (row[21] || '').toString().trim();
-        const fuelMachineAfter = (row[22] || '').toString().trim();
-        const mileage = parseFloat(row[23]) || 0;
-        const approvedBy = (row[24] || '').toString().trim();
-        const remarks = (row[25] || '').toString().trim();
+        const approvedBy = (row[10] || '').toString().trim();
+        const remarks = (row[11] || '').toString().trim();
+        const plannedDriver = (row[12] || '').toString().trim();
+        const actualDriver = (row[13] || '').toString().trim();
+        const delayDriver = (row[14] || '').toString().trim();
+        const dateOfFilling = (row[15] || '').toString().trim();
+        const lastKmReading = parseFloat(row[16]) || 0;
+        const currentKmReading = parseFloat(row[17]) || 0;
+        const photoOfReading = (row[18] || '').toString().trim();
+        const qty = parseFloat(row[19]) || 0;
+        const rate = parseFloat(row[20]) || 0;
+        const calculatedPrice = parseFloat(row[21]) || 0;
+        const fuelBillPhoto = (row[22] || '').toString().trim();
+        const fuelMachineBeforeStart = (row[23] || '').toString().trim();
+        const fuelMachineAfter = (row[24] || '').toString().trim();
+        const mileage = parseFloat(row[25]) || 0;
         const rowIndex = row[row.length - 1];
 
         return {
@@ -189,8 +237,8 @@ export const officeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    // Columns: A to X (24 columns)
-    const rowData = Array(24).fill('');
+    // Columns: A to Z (26 columns)
+    const rowData = Array(26).fill('');
     rowData[0] = formattedTimestamp;                    // Col A (1): Timestamp
     rowData[1] = '';                                    // Col B (2): Request-No (GAS generated)
     rowData[2] = requestData.vehicleNo || '';           // Col C (3): Vehicle No
@@ -229,15 +277,28 @@ export const officeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    const updatesList = [
-      { rowIndex, col: 7, val: formattedTimestamp },                                // Col G (7): Actual1 (Advance paid timestamp)
-      { rowIndex, col: 9, val: paymentData.modeOfAdvanceAmt || '' },                // Col I (9): Mode of Advance Amt
-      { rowIndex, col: 10, val: parseFloat(paymentData.advancePaid) || 0 },         // Col J (10): Advance-Paid
-      { rowIndex, col: 25, val: paymentData.approvedBy || '' },                     // Col Y (25): Approved By
-      { rowIndex, col: 26, val: paymentData.remarks || '' }                         // Col Z (26): Remarks
+    // Parallelize Actual1 status update (Col 7) and contiguous advance payment details update (Col 9-12)
+    const timestampUpdate = updateMultipleCells('Office-Logs', [
+      { rowIndex, col: 7, val: formattedTimestamp }
+    ]);
+
+    const rangeValues = [
+      [
+        paymentData.modeOfAdvanceAmt || '',
+        parseFloat(paymentData.advancePaid) || 0,
+        paymentData.approvedBy || '',
+        paymentData.remarks || ''
+      ]
     ];
 
-    return await updateMultipleCells('Office-Logs', updatesList);
+    const rangeUpdate = updateCellRange('Office-Logs', rowIndex, 9, rangeValues); // Col I (9)
+
+    const [resTimestamp, resRange] = await Promise.all([timestampUpdate, rangeUpdate]);
+
+    if (resTimestamp.success && resRange.success) {
+      return { success: true };
+    }
+    throw new Error("Advance payment processing failed");
   },
 
   processActualFillingToSheet: async (rowIndex, fillingData) => {
@@ -245,22 +306,35 @@ export const officeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    const updatesList = [
-      { rowIndex, col: 12, val: formattedTimestamp },                                // Col L (12): Actual1 (Driver) (Actual filling timestamp)
-      { rowIndex, col: 14, val: fillingData.dateOfFilling || '' },                   // Col N (14): Date of Filling
-      { rowIndex, col: 15, val: parseFloat(fillingData.lastKmReading) || 0 },        // Col O (15): Last KM Reading
-      { rowIndex, col: 16, val: parseFloat(fillingData.currentKmReading) || 0 },     // Col P (16): Current KM Reading
-      { rowIndex, col: 17, val: fillingData.photoOfReading || '' },                  // Col Q (17): photo of reading
-      { rowIndex, col: 18, val: parseFloat(fillingData.qty) || 0 },                  // Col R (18): Qty
-      { rowIndex, col: 19, val: parseFloat(fillingData.rate) || 0 },                 // Col S (19): Rate
-      { rowIndex, col: 20, val: parseFloat(fillingData.calculatedPrice) || 0 },      // Col T (20): Calculated Price
-      { rowIndex, col: 21, val: fillingData.fuelBillPhoto || '' },                   // Col U (21): Fuel-Bill-Photo
-      { rowIndex, col: 22, val: fillingData.fuelMachineBeforeStart || '' },          // Col V (22): Fuel machine before start
-      { rowIndex, col: 23, val: fillingData.fuelMachineAfter || '' },                // Col W (23): Fuel machine after
-      { rowIndex, col: 24, val: parseFloat(fillingData.mileage) || 0 }               // Col X (24): Mileage
+    // Execute timestamp single-cell update (Col 14) and filling data range update (Col 16-26) in parallel
+    const timestampUpdate = updateMultipleCells('Office-Logs', [
+      { rowIndex, col: 14, val: formattedTimestamp } // Col N (14)
+    ]);
+
+    const rangeValues = [
+      [
+        fillingData.dateOfFilling || '',
+        parseFloat(fillingData.lastKmReading) || 0,
+        parseFloat(fillingData.currentKmReading) || 0,
+        fillingData.photoOfReading || '',
+        parseFloat(fillingData.qty) || 0,
+        parseFloat(fillingData.rate) || 0,
+        parseFloat(fillingData.calculatedPrice) || 0,
+        fillingData.fuelBillPhoto || '',
+        fillingData.fuelMachineBeforeStart || '',
+        fillingData.fuelMachineAfter || '',
+        parseFloat(fillingData.mileage) || 0
+      ]
     ];
 
-    return await updateMultipleCells('Office-Logs', updatesList);
+    const rangeUpdate = updateCellRange('Office-Logs', rowIndex, 16, rangeValues); // Col P (16)
+
+    const [resTimestamp, resRange] = await Promise.all([timestampUpdate, rangeUpdate]);
+
+    if (resTimestamp.success && resRange.success) {
+      return { success: true };
+    }
+    throw new Error("Actual filling submission failed");
   },
 
   getRequestedByFromSheet: async () => {
