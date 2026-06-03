@@ -378,9 +378,12 @@ export default function Dashboard() {
       return;
     }
 
-    const selectedRecords = filteredRequests.filter(
-      req => req.logType === 'employee' && selectedRequestIds.includes(req.id)
-    );
+    const selectedRecords = filteredRequests
+      .filter(req => req.logType === 'employee' && selectedRequestIds.includes(req.id))
+      .map(req => ({
+        ...req,
+        approvedBy: req.approvedBy || user?.name || ''
+      }));
 
     if (selectedRecords.length === 0) {
       toast.error("No valid employee requests selected");
