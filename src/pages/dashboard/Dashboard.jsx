@@ -129,6 +129,7 @@ export default function Dashboard() {
           fillingDate: isoDate,
           vehicleNo: 'Personal',
           issuedTo: req.employeeName,
+          employeeName: req.employeeName,
           lastKmReading: req.kmReadingStart,
           currentKmReading: req.kmReadingEnd,
           qty: req.distanceCovered, // Distance in KM

@@ -523,7 +523,8 @@ export const employeeService = {
       req.currentKmReading !== undefined ? parseFloat(req.currentKmReading) || 0 : 0,   // Col F: End-Reading
       req.distance !== undefined ? parseFloat(req.distance) || 0 : 0,                    // Col G: Distance
       toEmail || '',                                                                   // Col H: To
-      ccEmail || ''                                                                    // Col I: CC
+      ccEmail || '',                                                                   // Col I: CC
+      req.employeeName || req.issuedTo || ''                                           // Col J: Employee-Name
     ]);
 
     // 3. Write data to sheet using updateRange action
