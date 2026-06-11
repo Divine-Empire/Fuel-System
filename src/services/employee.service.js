@@ -495,7 +495,7 @@ export const employeeService = {
     }
   },
 
-  submitEmailLogs: async (records, toEmail, ccEmail) => {
+  submitEmailLogs: async (records, toEmail, ccEmail, remarks = '') => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
     if (!APPS_SCRIPT_URL) {
       throw new Error("Apps Script URL is missing in environment variables");
@@ -509,7 +509,7 @@ export const employeeService = {
 
     const nextRowIndex = readJson.data ? readJson.data.length + 1 : 2;
 
-    // 2. Prepare 2D array of data: [Timestamp, Sequence-No., Date, Approved By, Start-Reading, End-Reading, Distance, To, CC]
+    // 2. Prepare 2D array of data: [Timestamp, Sequence-No., Date, Approved By, Start-Reading, End-Reading, Distance, To, CC, Employee-Name, Remarks]
     const now = new Date();
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
@@ -524,7 +524,8 @@ export const employeeService = {
       req.distance !== undefined ? parseFloat(req.distance) || 0 : 0,                    // Col G: Distance
       toEmail || '',                                                                   // Col H: To
       ccEmail || '',                                                                   // Col I: CC
-      req.employeeName || req.issuedTo || ''                                           // Col J: Employee-Name
+      req.employeeName || req.issuedTo || '',                                           // Col J: Employee-Name
+      remarks || ''                                                                    // Col K: Remarks
     ]);
 
     // 3. Write data to sheet using updateRange action

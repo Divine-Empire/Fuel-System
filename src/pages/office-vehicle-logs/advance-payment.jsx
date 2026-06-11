@@ -231,12 +231,14 @@ export default function OfficeAdvancePayment() {
   const tableHeaders = [
     ...(activeTab === 'pending' ? ['Actions'] : []),
     'Request-No',
+    'Ticket-Date',
     'Vehicle No',
     'Requested by',
     'Amount Req (₹)',
     'Mode of Advance Amt.',
     'Advance-Paid (₹)',
-    ...(activeTab === 'history' ? ['Planned1', 'Actual1', 'Delay', 'Approved By', 'Remarks'] : []),
+    ...(activeTab === 'pending' ? ['Planned'] : []),
+    ...(activeTab === 'history' ? ['Planned', 'Actual', 'Delay', 'Approved By', 'Remarks'] : []),
     'Date of Filling',
     'Last KM Reading',
     'Current KM Reading',
@@ -305,7 +307,7 @@ export default function OfficeAdvancePayment() {
             }`}
           >
             <Clock size={16} />
-            Pending Payment
+            Pending
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
@@ -323,7 +325,7 @@ export default function OfficeAdvancePayment() {
             }`}
           >
             <CheckCircle size={16} />
-            Payment History
+            History
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'history' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
@@ -411,6 +413,11 @@ export default function OfficeAdvancePayment() {
                         {log.requestNo || '—'}
                       </td>
 
+                      {/* Ticket-Date */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {formatSimpleDate(log.timestamp)}
+                      </td>
+
                       {/* Vehicle No */}
                       <td className="px-5 py-4 font-medium text-slate-700">
                         {log.vehicleNo || '—'}
@@ -435,6 +442,13 @@ export default function OfficeAdvancePayment() {
                       <td className="px-5 py-4 font-extrabold text-indigo-600">
                         {log.advancePaid ? `₹${log.advancePaid}` : '—'}
                       </td>
+
+                      {activeTab === 'pending' && (
+                        /* Planned */
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          {formatSimpleDate(log.planned1)}
+                        </td>
+                      )}
 
                       {activeTab === 'history' && (
                         <>

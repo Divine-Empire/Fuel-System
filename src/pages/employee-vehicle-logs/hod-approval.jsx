@@ -326,7 +326,7 @@ export default function EmployeeApproval() {
             }`}
           >
             <Clock size={16} />
-            Pending Approval
+            Pending
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
@@ -344,7 +344,7 @@ export default function EmployeeApproval() {
             }`}
           >
             <CheckCircle size={16} />
-            Approval History
+            History
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'history' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
@@ -420,6 +420,7 @@ export default function EmployeeApproval() {
                   </th>
                 )}
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Request-No</th>
+                <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket-Date</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Visit</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Department</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Employee-Name</th>
@@ -434,11 +435,13 @@ export default function EmployeeApproval() {
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Site-Location</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Machine-Details</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Journey Outcome</th>
+                {activeTab === 'pending' && (
+                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned</th>
+                )}
                 {activeTab === 'history' && (
                   <>
-                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned1</th>
-                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual1</th>
-                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Delay</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">HOD Remarks</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Approval Status</th>
@@ -451,7 +454,7 @@ export default function EmployeeApproval() {
                 Array.from({ length: 4 }).map((_, rIdx) => (
                   <tr key={rIdx} className="animate-pulse">
                     {activeTab === 'pending' && <td className="px-5 py-4"><div className="h-4 bg-slate-100 rounded w-4 mx-auto" /></td>}
-                    {Array.from({ length: 15 + (activeTab === 'history' ? 4 : 0) }).map((_, cIdx) => (
+                    {Array.from({ length: activeTab === 'pending' ? 17 : 22 }).map((_, cIdx) => (
                       <td key={cIdx} className="px-5 py-4">
                         <div className="h-4 bg-slate-100 rounded w-5/6" />
                       </td>
@@ -475,6 +478,11 @@ export default function EmployeeApproval() {
                     {/* Request-No */}
                     <td className="px-5 py-4 font-semibold text-slate-900">
                       {log.requestNo || '—'}
+                    </td>
+
+                    {/* Ticket-Date */}
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {formatSimpleDate(log.timestamp)}
                     </td>
                     
                     {/* Date of Visit */}
@@ -571,20 +579,27 @@ export default function EmployeeApproval() {
                       {log.journeyOutcome || '—'}
                     </td>
 
+                    {activeTab === 'pending' && (
+                      /* Planned */
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {formatSimpleDate(log.planned1)}
+                      </td>
+                    )}
+
                     {activeTab === 'history' && (
                       <>
-                        {/* Planned1 */}
-                        <td className="px-5 py-4">
+                        {/* Planned */}
+                        <td className="px-5 py-4 whitespace-nowrap">
                           {formatColonDate(log.planned1)}
                         </td>
 
-                        {/* Actual1 */}
-                        <td className="px-5 py-4">
+                        {/* Actual */}
+                        <td className="px-5 py-4 whitespace-nowrap">
                           {formatColonDate(log.actual1)}
                         </td>
                         
                         {/* Delay */}
-                        <td className="px-5 py-4 text-rose-600 font-semibold">
+                        <td className="px-5 py-4 text-rose-600 font-semibold whitespace-nowrap">
                           {log.delay1 || '—'}
                         </td>
 
@@ -610,7 +625,7 @@ export default function EmployeeApproval() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={15 + (activeTab === 'pending' ? 1 : 6)} className="px-5 py-14 text-center">
+                  <td colSpan={activeTab === 'pending' ? 18 : 22} className="px-5 py-14 text-center">
                     <p className="text-slate-400 font-medium text-sm">
                       {searchQuery ? 'No matching logs found' : 'No logs found in this category'}
                     </p>

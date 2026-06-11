@@ -99,6 +99,7 @@ export default function Dashboard() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [toEmail, setToEmail] = useState('');
   const [ccEmail, setCcEmail] = useState('');
+  const [emailRemarks, setEmailRemarks] = useState('');
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -392,9 +393,10 @@ export default function Dashboard() {
 
     setSubmittingEmail(true);
     try {
-      await employeeService.submitEmailLogs(selectedRecords, toEmail.trim(), ccEmail.trim());
+      await employeeService.submitEmailLogs(selectedRecords, toEmail.trim(), ccEmail.trim(), emailRemarks.trim());
       toast.success("Email logs submitted successfully!");
       setSelectedRequestIds([]);
+      setEmailRemarks('');
       setIsEmailModalOpen(false);
       fetchDashboardData();
     } catch (err) {
@@ -913,6 +915,7 @@ export default function Dashboard() {
                   onClick={() => {
                     setToEmail('');
                     setCcEmail('');
+                    setEmailRemarks('');
                     setIsEmailModalOpen(true);
                   }}
                   className="inline-flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95 shadow-sm"
@@ -1260,11 +1263,28 @@ export default function Dashboard() {
                   </select>
                 </div>
               </div>
+              
+              {/* Remarks Field */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Remarks
+                </label>
+                <input
+                  type="text"
+                  value={emailRemarks}
+                  onChange={(e) => setEmailRemarks(e.target.value)}
+                  placeholder="Enter remarks (optional)"
+                  className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => setIsEmailModalOpen(false)}
+                onClick={() => {
+                  setIsEmailModalOpen(false);
+                  setEmailRemarks('');
+                }}
                 className="text-xs text-slate-500 hover:text-slate-700 font-bold px-4 py-2"
                 disabled={submittingEmail}
               >

@@ -318,7 +318,7 @@ export default function EmployeePayment() {
             }`}
           >
             <Clock size={16} />
-            Pending Process
+            Pending
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
@@ -336,7 +336,7 @@ export default function EmployeePayment() {
             }`}
           >
             <CheckCircle size={16} />
-            Payment History
+            History
             {logs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'history' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'
@@ -380,6 +380,7 @@ export default function EmployeePayment() {
                   <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Action</th>
                 )}
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Request-No</th>
+                <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Ticket-Date</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Date of Visit</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Department</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Employee-Name</th>
@@ -395,15 +396,18 @@ export default function EmployeePayment() {
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Machine-Details</th>
                 <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Journey Outcome</th>
                 {activeTab === 'pending' ? (
-                  <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Estimated KM</th>
+                  <>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Estimated KM</th>
+                  </>
                 ) : (
                   <>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">KM Covered</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Rate</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Calculated Price</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual Paid</th>
-                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned2</th>
-                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual2</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Planned</th>
+                    <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Actual</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Delay</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Remarks</th>
                     <th className="px-5 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Status</th>
@@ -415,7 +419,7 @@ export default function EmployeePayment() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, rIdx) => (
                   <tr key={rIdx} className="animate-pulse">
-                    {Array.from({ length: 15 + (activeTab === 'pending' ? 2 : 9) }).map((_, cIdx) => (
+                    {Array.from({ length: activeTab === 'pending' ? 19 : 25 }).map((_, cIdx) => (
                       <td key={cIdx} className="px-5 py-4">
                         <div className="h-4 bg-slate-100 rounded w-5/6" />
                       </td>
@@ -442,6 +446,11 @@ export default function EmployeePayment() {
                       {/* Request-No */}
                       <td className="px-5 py-4 font-semibold text-slate-900">
                         {log.requestNo || '—'}
+                      </td>
+
+                      {/* Ticket-Date */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {formatSimpleDate(log.timestamp)}
                       </td>
                       
                       {/* Date of Visit */}
@@ -539,10 +548,16 @@ export default function EmployeePayment() {
                       </td>
 
                       {activeTab === 'pending' ? (
-                        /* Estimated KM */
-                        <td className="px-5 py-4 text-slate-700 font-semibold">
-                          {kmCoveredEst} KM
-                        </td>
+                        <>
+                          {/* Planned */}
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {formatSimpleDate(log.planned2)}
+                          </td>
+                          {/* Estimated KM */}
+                          <td className="px-5 py-4 text-slate-700 font-semibold">
+                            {kmCoveredEst} KM
+                          </td>
+                        </>
                       ) : (
                         <>
                           {/* KM Covered */}
@@ -565,18 +580,18 @@ export default function EmployeePayment() {
                             ₹{log.actualPaid}
                           </td>
 
-                          {/* Planned2 */}
-                          <td className="px-5 py-4">
+                          {/* Planned */}
+                          <td className="px-5 py-4 whitespace-nowrap">
                             {formatColonDate(log.planned2)}
                           </td>
 
-                          {/* Actual2 */}
-                          <td className="px-5 py-4">
+                          {/* Actual */}
+                          <td className="px-5 py-4 whitespace-nowrap">
                             {formatColonDate(log.actual2)}
                           </td>
 
                           {/* Delay */}
-                          <td className="px-5 py-4 text-rose-600 font-semibold">
+                          <td className="px-5 py-4 text-rose-600 font-semibold whitespace-nowrap">
                             {log.delay2 || '—'}
                           </td>
 
@@ -604,7 +619,7 @@ export default function EmployeePayment() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={15 + (activeTab === 'pending' ? 2 : 9)} className="px-5 py-14 text-center">
+                  <td colSpan={activeTab === 'pending' ? 19 : 25} className="px-5 py-14 text-center">
                     <p className="text-slate-400 font-medium text-sm">
                       {searchQuery ? 'No matching payment records found' : 'No payment records found'}
                     </p>

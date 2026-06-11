@@ -411,7 +411,7 @@ export default function OfficeActualFilling() {
             }`}
           >
             <Clock size={16} />
-            Pending Filling
+            Pending 
             {userFilteredLogs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
@@ -429,7 +429,7 @@ export default function OfficeActualFilling() {
             }`}
           >
             <CheckCircle size={16} />
-            Filling History
+            History
             {userFilteredLogs.length > 0 && (
               <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${
                 activeTab === 'history' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'

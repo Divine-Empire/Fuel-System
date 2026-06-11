@@ -262,10 +262,12 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
       if (dateTimeStr) {
         const parts = dateTimeStr.trim().split(/\s+/);
         if (parts.length === 2) {
+          const datePart = parts[0]; // "YYYY:MM:DD"
           const timePart = parts[1]; // "HH:MM:SS"
+          const dateSubparts = datePart.split(':');
           const timeSubparts = timePart.split(':');
-          if (timeSubparts.length >= 2) {
-            finalTime = `${timeSubparts[0].padStart(2, '0')}:${timeSubparts[1].padStart(2, '0')}`;
+          if (dateSubparts.length === 3 && timeSubparts.length >= 2) {
+            finalTime = `${dateSubparts[2].padStart(2, '0')}-${dateSubparts[1].padStart(2, '0')}-${dateSubparts[0]} ${timeSubparts[0].padStart(2, '0')}:${timeSubparts[1].padStart(2, '0')}`;
           }
         }
       }
@@ -273,11 +275,16 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
       if (!finalTime) {
         const fileDate = new Date(file.lastModified);
         if (!isNaN(fileDate.getTime())) {
-          finalTime = `${String(fileDate.getHours()).padStart(2, '0')}:${String(fileDate.getMinutes()).padStart(2, '0')}`;
+          const day = String(fileDate.getDate()).padStart(2, '0');
+          const month = String(fileDate.getMonth() + 1).padStart(2, '0');
+          const year = fileDate.getFullYear();
+          const hours = String(fileDate.getHours()).padStart(2, '0');
+          const minutes = String(fileDate.getMinutes()).padStart(2, '0');
+          finalTime = `${day}-${month}-${year} ${hours}:${minutes}`;
           toast.success(`No EXIF date found. Detected from file modification time: ${finalTime}`);
         }
       } else {
-        toast.success(`Time detected from photo metadata: ${finalTime}`);
+        toast.success(`Timestamp detected from photo metadata: ${finalTime}`);
       }
 
       if (finalTime) {
@@ -287,21 +294,26 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
           setEndTime(finalTime);
         }
       } else {
-        toast.error('Could not detect time from the image.');
+        toast.error('Could not detect timestamp from the image.');
       }
     } catch (err) {
       console.error('Error reading EXIF data:', err);
       const fileDate = new Date(file.lastModified);
       if (!isNaN(fileDate.getTime())) {
-        const finalTime = `${String(fileDate.getHours()).padStart(2, '0')}:${String(fileDate.getMinutes()).padStart(2, '0')}`;
-        toast.success(`Detected time from file: ${finalTime}`);
+        const day = String(fileDate.getDate()).padStart(2, '0');
+        const month = String(fileDate.getMonth() + 1).padStart(2, '0');
+        const year = fileDate.getFullYear();
+        const hours = String(fileDate.getHours()).padStart(2, '0');
+        const minutes = String(fileDate.getMinutes()).padStart(2, '0');
+        const finalTime = `${day}-${month}-${year} ${hours}:${minutes}`;
+        toast.success(`Detected timestamp from file: ${finalTime}`);
         if (isStart) {
           setStartTime(finalTime);
         } else {
           setEndTime(finalTime);
         }
       } else {
-        toast.error('Failed to read image metadata. Please input time manually if needed.');
+        toast.error('Failed to read image metadata. Please input timestamp manually if needed.');
       }
     }
   };
@@ -314,7 +326,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
       if (!dateOfVisit) return toast.error('Please select Date of Visit');
       if (!department) return toast.error('Please select Department');
       if (!employeeName) return toast.error('Please select Employee Name');
-      if (!startTime) return toast.error('Please upload Start Journey photo to detect Start Time');
+      if (!startTime) return toast.error('Please upload Start Journey photo to detect Start Timestamp');
       if (!kmReadingStart || parseFloat(kmReadingStart) < 0) return toast.error('Please enter a valid Start KM Reading');
       if (!proofStartFile) return toast.error('Please upload Start Journey odometer photo');
       if (!purposeOfVisit.trim()) return toast.error('Please enter Purpose of Visit');
@@ -330,7 +342,7 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
     const hasEndDetails = isProcessMode || !!proofEndFile || !!kmReadingEnd || !!endTime || !!journeyOutcome.trim();
 
     if (hasEndDetails) {
-      if (!endTime) return toast.error('Please upload End Journey photo to detect End Time');
+      if (!endTime) return toast.error('Please upload End Journey photo to detect End Timestamp');
       if (!kmReadingEnd || parseFloat(kmReadingEnd) < 0) return toast.error('Please enter a valid End KM Reading');
       if (parseFloat(kmReadingEnd) <= parseFloat(kmReadingStart)) {
         return toast.error('End KM Reading must be greater than Start KM Reading');
@@ -555,22 +567,28 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
 
                     <div className="space-y-4">
                       <div>
-                        <label className={labelCls}>Start Time</label>
+                        <label className={labelCls}>Start Timestamp</label>
                         <input
-                          type="time"
+                          type="text"
                           value={startTime}
                           onChange={(e) => setStartTime(e.target.value)}
                           className={`${inputCls} bg-slate-100/60 font-medium`}
                           readOnly
                           placeholder="Auto-detected from photo"
                         />
-                        <p className="text-[10px] text-indigo-500 mt-1 font-medium">Auto-detected from odometer photo upload</p>
+                        <p className="text-[10px] text-indigo-500 mt-1 font-medium">Auto-detected from KM photo</p>
                       </div>
 
                       <div>
                         <label className={labelCls}>KM Reading (Start)</label>
                         <input
                           type="number"
+                          step="1"
+                          onKeyDown={(e) => {
+                            if (['.', ',', 'e', 'E', '+', '-'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
                           value={kmReadingStart}
                           onChange={(e) => setKmReadingStart(e.target.value)}
                           placeholder="e.g. 15420"
@@ -616,22 +634,28 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
 
                     <div className="space-y-4">
                       <div>
-                        <label className={labelCls}>End Time</label>
+                        <label className={labelCls}>End Timestamp</label>
                         <input
-                          type="time"
+                          type="text"
                           value={endTime}
                           onChange={(e) => setEndTime(e.target.value)}
                           className={`${inputCls} bg-slate-100/60 font-medium`}
                           readOnly
                           placeholder="Auto-detected from photo"
                         />
-                        <p className="text-[10px] text-indigo-500 mt-1 font-medium">Auto-detected from odometer photo upload</p>
+                        <p className="text-[10px] text-indigo-500 mt-1 font-medium">Auto-detected from KM photo</p>
                       </div>
 
                       <div>
                         <label className={labelCls}>KM Reading (End)</label>
                         <input
                           type="number"
+                          step="1"
+                          onKeyDown={(e) => {
+                            if (['.', ',', 'e', 'E', '+', '-'].includes(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
                           value={kmReadingEnd}
                           onChange={(e) => setKmReadingEnd(e.target.value)}
                           placeholder="e.g. 15530"
