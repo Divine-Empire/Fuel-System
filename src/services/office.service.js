@@ -160,6 +160,7 @@ export const officeService = {
         const fuelMachineBeforeStart = (row[23] || '').toString().trim();
         const fuelMachineAfter = (row[24] || '').toString().trim();
         const mileage = parseFloat(row[25]) || 0;
+        const approvalFrom = row.length > 27 ? (row[26] || '').toString().trim() : '';
         const rowIndex = row[row.length - 1];
 
         return {
@@ -189,6 +190,7 @@ export const officeService = {
           mileage,
           approvedBy,
           remarks,
+          approvalFrom,
           rowIndex
         };
       });
@@ -237,13 +239,14 @@ export const officeService = {
     const pad = (num) => String(num).padStart(2, '0');
     const formattedTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    // Columns: A to Z (26 columns)
-    const rowData = Array(26).fill('');
+    // Columns: A to AA (27 columns)
+    const rowData = Array(27).fill('');
     rowData[0] = formattedTimestamp;                    // Col A (1): Timestamp
     rowData[1] = '';                                    // Col B (2): Request-No (GAS generated)
     rowData[2] = requestData.vehicleNo || '';           // Col C (3): Vehicle No
     rowData[3] = requestData.requestedBy || '';         // Col D (4): Requested by
     rowData[4] = parseFloat(requestData.amountReq) || 0; // Col E (5): Amount Req
+    rowData[26] = requestData.approvalFrom || '';       // Col AA (27): Approval From
 
     const bodyParams = new URLSearchParams({
       action: 'insert',

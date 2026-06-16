@@ -7,6 +7,7 @@ import { vehicleService } from '../../services/vehicle.service';
 export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
   const [vehicles, setVehicles] = useState([]);
   const [requestors, setRequestors] = useState([]);
+  const [approvers, setApprovers] = useState([]);
   const [loadingMaster, setLoadingMaster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStep, setSubmissionStep] = useState('');
@@ -14,15 +15,17 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
   // Form states
   const [vehicleNo, setVehicleNo] = useState('');
   const [requestedBy, setRequestedBy] = useState('');
+  const [approvalFrom, setApprovalFrom] = useState('');
   const [amountReq, setAmountReq] = useState('');
 
   useEffect(() => {
     const fetchMasterData = async () => {
       setLoadingMaster(true);
       try {
-        const [vehiclesList, requestorsList] = await Promise.all([
+        const [vehiclesList, requestorsList, approversList] = await Promise.all([
           vehicleService.getVehiclesFromSheet(),
-          officeService.getRequestedByFromSheet()
+          officeService.getRequestedByFromSheet(),
+          officeService.getApprovedByFromSheet()
         ]);
 
         const cleanedVehicles = vehiclesList.filter(v => v && v.vehicleNo);
@@ -30,10 +33,14 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
 
         const cleanedRequestors = requestorsList.filter(Boolean);
         setRequestors(cleanedRequestors);
+
+        const cleanedApprovers = approversList.filter(Boolean);
+        setApprovers(cleanedApprovers);
       } catch (error) {
         console.error("Failed to load master data from sheet:", error);
         setVehicles([]);
         setRequestors([]);
+        setApprovers([]);
       } finally {
         setLoadingMaster(false);
       }
@@ -44,6 +51,7 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
       // Reset form on open
       setVehicleNo('');
       setRequestedBy('');
+      setApprovalFrom('');
       setAmountReq('');
     }
   }, [isOpen]);
@@ -56,6 +64,7 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
     // Validation
     if (!vehicleNo) return toast.error('Please select Vehicle No');
     if (!requestedBy) return toast.error('Please select Requested By');
+    if (!approvalFrom) return toast.error('Please select Approval From');
     if (!amountReq || parseFloat(amountReq) <= 0) {
       return toast.error('Please enter a valid requested amount');
     }
@@ -67,6 +76,7 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
       await officeService.createOfficeRequestToSheet({
         vehicleNo,
         requestedBy,
+        approvalFrom,
         amountReq
       });
 
@@ -169,6 +179,25 @@ export default function OfficeRequestModal({ isOpen, onClose, onRefresh }) {
                     <option value="" disabled>Select Requestor</option>
                     {requestors.map((req, idx) => (
                       <option key={idx} value={req}>{req}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelCls}>
+                    <User size={13} className="inline mr-1 text-slate-400" />
+                    Approval From
+                  </label>
+                  <select
+                    value={approvalFrom}
+                    onChange={(e) => setApprovalFrom(e.target.value)}
+                    className={selectCls}
+                    required
+                    disabled={submitting}
+                  >
+                    <option value="" disabled>Select Approver</option>
+                    {approvers.map((app, idx) => (
+                      <option key={idx} value={app}>{app}</option>
                     ))}
                   </select>
                 </div>
