@@ -16,19 +16,19 @@ export const fuelService = {
     }
   },
 
-  uploadFileToDrive: async (base64Data, fileName) => {
+  uploadFileToDrive: async (base64Data, fileName, mimeType = 'image/jpeg') => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
     const FOLDER_ID = import.meta.env.VITE_FOLDER_ID;
-    if (!APPS_SCRIPT_URL || !FOLDER_ID) {
-      throw new Error("Apps Script URL or Folder ID is missing in environment variables");
+    if (!APPS_SCRIPT_URL) {
+      throw new Error("Apps Script URL is missing in environment variables");
     }
     
     const bodyParams = new URLSearchParams({
       action: 'uploadFile',
       base64Data: base64Data,
       fileName: fileName,
-      mimeType: 'application/pdf',
-      folderId: FOLDER_ID
+      mimeType: mimeType || 'image/jpeg',
+      folderId: FOLDER_ID || ''
     });
 
     const response = await fetch(APPS_SCRIPT_URL, {
@@ -39,7 +39,7 @@ export const fuelService = {
       body: bodyParams.toString()
     });
 
-    if (!response.ok) throw new Error("Upload request failed");
+    if (!response.ok) throw new Error(`Upload request failed with status ${response.status}`);
     const resJson = await response.json();
     if (!resJson.success) throw new Error(resJson.error || "File upload failed");
     return resJson.fileUrl;

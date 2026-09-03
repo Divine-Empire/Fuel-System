@@ -13,18 +13,7 @@ import {
 } from 'lucide-react';
 import { employeeService } from '../../services/employee.service';
 import { fuelService } from '../../services/fuel.service';
-
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
+import { compressImage } from '../../utils/imageCompressor';
 
 function SearchableSelect({
   options = [],
@@ -369,22 +358,24 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
 
       if (!isProcessMode && proofStartFile) {
         uploadStartIdx = uploadPromises.push((async () => {
-          const startBase64 = await fileToBase64(proofStartFile);
+          const { base64, mimeType } = await compressImage(proofStartFile);
+          const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
           return await employeeService.uploadFileToDrive(
-            startBase64, 
-            `START_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
-            proofStartFile.type
+            base64, 
+            `START_PROOF_${cleanName}_${Date.now()}.jpg`,
+            mimeType || 'image/jpeg'
           );
         })()) - 1;
       }
 
       if (hasEndDetails && proofEndFile) {
         uploadEndIdx = uploadPromises.push((async () => {
-          const endBase64 = await fileToBase64(proofEndFile);
+          const { base64, mimeType } = await compressImage(proofEndFile);
+          const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
           return await employeeService.uploadFileToDrive(
-            endBase64, 
-            `END_PROOF_${employeeName.replace(/\s+/g, '_')}_${Date.now()}.png`,
-            proofEndFile.type
+            base64, 
+            `END_PROOF_${cleanName}_${Date.now()}.jpg`,
+            mimeType || 'image/jpeg'
           );
         })()) - 1;
       }

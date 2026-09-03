@@ -13,6 +13,7 @@ import {
 import { officeService } from '../../services/office.service';
 import { vehicleService } from '../../services/vehicle.service';
 import { useAuthStore } from '../../store/authStore';
+import { compressImage } from '../../utils/imageCompressor';
 
 const formatSimpleDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -78,18 +79,6 @@ const formatColonDate = (dateStr) => {
   } catch {
     return dateStr.toString().replace(/[\/\-]/g, ':');
   }
-};
-
-const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const base64String = reader.result.split(',')[1];
-      resolve(base64String);
-    };
-    reader.onerror = (error) => reject(error);
-  });
 };
 
 export default function OfficeActualFilling() {
@@ -271,35 +260,37 @@ export default function OfficeActualFilling() {
     setSubmissionStep("Uploading photos...");
 
     try {
-      // Convert all 4 files to base64 in parallel
-      const [base64Reading, base64Bill, base64Before, base64After] = await Promise.all([
-        fileToBase64(photoOfReadingFile),
-        fileToBase64(fuelBillPhotoFile),
-        fileToBase64(fuelMachineBeforeStartFile),
-        fileToBase64(fuelMachineAfterFile),
+      // Compress all 4 files in parallel
+      const [compReading, compBill, compBefore, compAfter] = await Promise.all([
+        compressImage(photoOfReadingFile),
+        compressImage(fuelBillPhotoFile),
+        compressImage(fuelMachineBeforeStartFile),
+        compressImage(fuelMachineAfterFile),
       ]);
 
-      // Upload all 4 photos in parallel (4x faster than sequential)
+      const reqNo = (selectedLogForFilling.requestNo || 'REQ').replace(/[^a-zA-Z0-9]/g, '_');
+
+      // Upload all 4 photos in parallel
       const [photoOfReadingUrl, fuelBillPhotoUrl, fuelMachineBeforeStartUrl, fuelMachineAfterUrl] = await Promise.all([
         officeService.uploadFileToDrive(
-          base64Reading,
-          `odometer_office_${selectedLogForFilling.requestNo}.png`,
-          photoOfReadingFile.type
+          compReading.base64,
+          `odometer_office_${reqNo}.jpg`,
+          compReading.mimeType
         ),
         officeService.uploadFileToDrive(
-          base64Bill,
-          `fuel_bill_office_${selectedLogForFilling.requestNo}.png`,
-          fuelBillPhotoFile.type
+          compBill.base64,
+          `fuel_bill_office_${reqNo}.jpg`,
+          compBill.mimeType
         ),
         officeService.uploadFileToDrive(
-          base64Before,
-          `dispenser_before_office_${selectedLogForFilling.requestNo}.png`,
-          fuelMachineBeforeStartFile.type
+          compBefore.base64,
+          `dispenser_before_office_${reqNo}.jpg`,
+          compBefore.mimeType
         ),
         officeService.uploadFileToDrive(
-          base64After,
-          `dispenser_after_office_${selectedLogForFilling.requestNo}.png`,
-          fuelMachineAfterFile.type
+          compAfter.base64,
+          `dispenser_after_office_${reqNo}.jpg`,
+          compAfter.mimeType
         ),
       ]);
 
