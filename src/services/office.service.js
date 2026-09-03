@@ -113,6 +113,23 @@ const updateCellRange = async (sheetName, rowIndex, startColumn, values2D) => {
   return await updateMultipleCells(sheetName, updatesList);
 };
 
+const fetchWithRetry = async (url, options = {}, retries = 2, delayMs = 1000) => {
+  let lastError;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      lastError = new Error(`Network response was not ok (HTTP ${response.status})`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (i < retries) {
+      await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw lastError;
+};
+
 export const officeService = {
   getOfficeRequestsFromSheet: async () => {
     const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL;
@@ -121,8 +138,7 @@ export const officeService = {
     }
 
     try {
-      const response = await fetch(`${APPS_SCRIPT_URL}?sheet=Office-Logs&headerRow=7&_t=${Date.now()}`);
-      if (!response.ok) throw new Error("Network response was not ok");
+      const response = await fetchWithRetry(`${APPS_SCRIPT_URL}?sheet=Office-Logs&headerRow=7&_t=${Date.now()}`);
       
       const resJson = await response.json();
       if (!resJson.success) throw new Error(resJson.error || "Failed to fetch office logs");
