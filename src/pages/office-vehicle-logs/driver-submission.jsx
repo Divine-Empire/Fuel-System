@@ -270,29 +270,27 @@ export default function OfficeActualFilling() {
 
       const reqNo = (selectedLogForFilling.requestNo || 'REQ').replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Upload all 4 photos in parallel
-      const [photoOfReadingUrl, fuelBillPhotoUrl, fuelMachineBeforeStartUrl, fuelMachineAfterUrl] = await Promise.all([
-        officeService.uploadFileToDrive(
-          compReading.base64,
-          `odometer_office_${reqNo}.jpg`,
-          compReading.mimeType
-        ),
-        officeService.uploadFileToDrive(
-          compBill.base64,
-          `fuel_bill_office_${reqNo}.jpg`,
-          compBill.mimeType
-        ),
-        officeService.uploadFileToDrive(
-          compBefore.base64,
-          `dispenser_before_office_${reqNo}.jpg`,
-          compBefore.mimeType
-        ),
-        officeService.uploadFileToDrive(
-          compAfter.base64,
-          `dispenser_after_office_${reqNo}.jpg`,
-          compAfter.mimeType
-        ),
-      ]);
+      // Upload all 4 photos sequentially to prevent GAS rate limit / lock errors on mobile
+      const photoOfReadingUrl = await officeService.uploadFileToDrive(
+        compReading.base64,
+        `odometer_office_${reqNo}.jpg`,
+        compReading.mimeType
+      );
+      const fuelBillPhotoUrl = await officeService.uploadFileToDrive(
+        compBill.base64,
+        `fuel_bill_office_${reqNo}.jpg`,
+        compBill.mimeType
+      );
+      const fuelMachineBeforeStartUrl = await officeService.uploadFileToDrive(
+        compBefore.base64,
+        `dispenser_before_office_${reqNo}.jpg`,
+        compBefore.mimeType
+      );
+      const fuelMachineAfterUrl = await officeService.uploadFileToDrive(
+        compAfter.base64,
+        `dispenser_after_office_${reqNo}.jpg`,
+        compAfter.mimeType
+      );
 
       // Save to Sheet after all uploads complete
       setSubmissionStep("Saving details to spreadsheet...");

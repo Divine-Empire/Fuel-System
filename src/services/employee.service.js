@@ -373,7 +373,8 @@ export const employeeService = {
 
     const rangeUpdate = updateCellRange('Employee-Logs', rowIndex, 28, rangeValues); // Col AB (28)
 
-    const [resStatus, resRange] = await Promise.all([statusUpdate, rangeUpdate]);
+    const resStatus = await statusUpdate;
+    const resRange = await rangeUpdate;
 
     if (resStatus.success && resRange.success) {
       return { success: true };
@@ -398,7 +399,8 @@ export const employeeService = {
       { rowIndex, col: 18, val: journeyData.journeyOutcome || '' } // Col R (18): Journey Outcome
     ]);
 
-    const [resRange, resOther] = await Promise.all([rangeUpdate, otherFieldsUpdate]);
+    const resRange = await rangeUpdate;
+    const resOther = await otherFieldsUpdate;
 
     if (resRange.success && resOther.success) {
       return { success: true };

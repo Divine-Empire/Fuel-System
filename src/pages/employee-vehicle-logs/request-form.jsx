@@ -352,38 +352,25 @@ export default function EmployeeRequestModal({ isOpen, onClose, onRefresh, editR
       // Upload proofs in parallel if both need to be uploaded
       setSubmissionStep("Uploading proofs...");
 
-      const uploadPromises = [];
-      let uploadStartIdx = -1;
-      let uploadEndIdx = -1;
-
+      // Upload proofs sequentially to prevent GAS rate limit / lock errors on mobile
       if (!isProcessMode && proofStartFile) {
-        uploadStartIdx = uploadPromises.push((async () => {
-          const { base64, mimeType } = await compressImage(proofStartFile);
-          const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
-          return await employeeService.uploadFileToDrive(
-            base64, 
-            `START_PROOF_${cleanName}_${Date.now()}.jpg`,
-            mimeType || 'image/jpeg'
-          );
-        })()) - 1;
+        const { base64, mimeType } = await compressImage(proofStartFile);
+        const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
+        proofStartUrl = await employeeService.uploadFileToDrive(
+          base64, 
+          `START_PROOF_${cleanName}_${Date.now()}.jpg`,
+          mimeType || 'image/jpeg'
+        );
       }
 
       if (hasEndDetails && proofEndFile) {
-        uploadEndIdx = uploadPromises.push((async () => {
-          const { base64, mimeType } = await compressImage(proofEndFile);
-          const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
-          return await employeeService.uploadFileToDrive(
-            base64, 
-            `END_PROOF_${cleanName}_${Date.now()}.jpg`,
-            mimeType || 'image/jpeg'
-          );
-        })()) - 1;
-      }
-
-      if (uploadPromises.length > 0) {
-        const uploadResults = await Promise.all(uploadPromises);
-        if (uploadStartIdx !== -1) proofStartUrl = uploadResults[uploadStartIdx];
-        if (uploadEndIdx !== -1) proofEndUrl = uploadResults[uploadEndIdx];
+        const { base64, mimeType } = await compressImage(proofEndFile);
+        const cleanName = (employeeName || 'EMP').replace(/[^a-zA-Z0-9]/g, '_');
+        proofEndUrl = await employeeService.uploadFileToDrive(
+          base64, 
+          `END_PROOF_${cleanName}_${Date.now()}.jpg`,
+          mimeType || 'image/jpeg'
+        );
       }
 
       const distanceVal = kmReadingStart && kmReadingEnd ? parseFloat(kmReadingEnd) - parseFloat(kmReadingStart) : 0;

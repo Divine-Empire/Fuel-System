@@ -312,7 +312,8 @@ export const officeService = {
 
     const rangeUpdate = updateCellRange('Office-Logs', rowIndex, 9, rangeValues); // Col I (9)
 
-    const [resTimestamp, resRange] = await Promise.all([timestampUpdate, rangeUpdate]);
+    const resTimestamp = await timestampUpdate;
+    const resRange = await rangeUpdate;
 
     if (resTimestamp.success && resRange.success) {
       return { success: true };
@@ -348,7 +349,8 @@ export const officeService = {
 
     const rangeUpdate = updateCellRange('Office-Logs', rowIndex, 16, rangeValues); // Col P (16)
 
-    const [resTimestamp, resRange] = await Promise.all([timestampUpdate, rangeUpdate]);
+    const resTimestamp = await timestampUpdate;
+    const resRange = await rangeUpdate;
 
     if (resTimestamp.success && resRange.success) {
       return { success: true };
